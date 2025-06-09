@@ -116,9 +116,9 @@ const Header: React.FC = () => {
             Feed
         </button>
         </Link>
-        <Link href="/drafts" data-active={isActive('/drafts')}>
+        <Link href="/schemata" data-active={isActive('/schemata')}>
         <button>
-          My drafts
+          Schemata
         </button>
         </Link>
         <style jsx>{`
@@ -151,9 +151,9 @@ const Header: React.FC = () => {
         <p>
           {session.user.name} ({session.user.email})
         </p>
-        <Link href="/create">
+        <Link href="/create_gschema">
           <button>
-            New post
+            New schema
           </button>
         </Link>
         <button onClick={() => signOut()}>
