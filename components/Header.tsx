@@ -113,12 +113,12 @@ const Header: React.FC = () => {
       <div className="left">
         <Link href="/" className="bold" data-active={isActive('/')}>
         <button>
-            Feed
+            Schemata
         </button>
         </Link>
-        <Link href="/schemata" data-active={isActive('/schemata')}>
+        <Link href="/myschemata" data-active={isActive('/myschemata')}>
         <button>
-          Schemata
+          My Schemata
         </button>
         </Link>
         <style jsx>{`
