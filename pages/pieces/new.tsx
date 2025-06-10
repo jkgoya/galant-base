@@ -7,6 +7,7 @@ const NewPiece: React.FC = () => {
   const [title, setTitle] = useState('');
   const [composer, setComposer] = useState('');
   const [scoreUrl, setScoreUrl] = useState('');
+  const [scoreFormat, setScoreFormat] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -16,7 +17,7 @@ const NewPiece: React.FC = () => {
     setError('');
     try {
       const session = await getSession();
-      const body = { title, composer, scoreUrl, email: session.user.email };
+      const body = { title, composer, scoreUrl, scoreFormat, email: session.user.email };
       const res = await fetch('/api/pieces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -53,7 +54,15 @@ const NewPiece: React.FC = () => {
             type="text"
             value={scoreUrl}
           />
-          <input disabled={saving || !title || !composer || !scoreUrl} type="submit" value="Submit" />
+                    <input
+            onChange={e => setScoreFormat(e.target.value)}
+            placeholder="Score Format"
+            type="text"
+            value={scoreFormat}
+          />
+          
+          
+          <input disabled={saving || !title || !composer || !scoreUrl || !scoreFormat} type="submit" value="Submit" />
         </form>
         {error && <p style={{ color: 'red' }}>{error}</p>}
       </div>
