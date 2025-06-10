@@ -17,8 +17,6 @@ model Piece {
   contributor    User?@relation(fields:[contributorId], references:[id])
   contributorId  String?
   active         Boolean @default(false)
-  scoreUrl       String
-  scoreFormat    String
   meiUrl         String?
   meiData        String?
   gschemas       Gschema_Piece[]

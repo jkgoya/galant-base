@@ -17,7 +17,7 @@ type PieceProps = {
   id: string;
   title: string;
   composer: string;
-  meiUrl: string;
+  meiData: string;
 };
 
 type Props = {
@@ -30,7 +30,7 @@ const PieceDetail: React.FC<Props> = ({ piece }) => (
       <h1>{piece.title}</h1>
       <p>Composer: {piece.composer}</p>
       <h3>Score</h3>
-      <VerovioScore meiUrl={piece.meiUrl} />
+      <VerovioScore meiData={piece.meiData} />
     </div>
   </Layout>
 );

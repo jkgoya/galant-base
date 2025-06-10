@@ -16,7 +16,6 @@ export default async function handle(req, res) {
       data: {
         title,
         composer,
-        scoreFormat,
         meiData,
         contributor: { connect: { email } },
       },
