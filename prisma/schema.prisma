@@ -20,6 +20,7 @@ model Piece {
   scoreUrl       String
   scoreFormat    String
   meiUrl         String?
+  meiData        String?
   gschemas       Gschema_Piece[]
 }
 

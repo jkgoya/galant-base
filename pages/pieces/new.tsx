@@ -3,13 +3,38 @@ import Layout from '../../components/Layout';
 import Router from 'next/router';
 import { getSession } from 'next-auth/react';
 
+const allowedExtensions = ['mei'];
+
 const NewPiece: React.FC = () => {
   const [title, setTitle] = useState('');
   const [composer, setComposer] = useState('');
-  const [scoreUrl, setScoreUrl] = useState('');
+  const [scoreFile, setScoreFile] = useState<File | null>(null);
   const [scoreFormat, setScoreFormat] = useState('');
+  const [meiData, setMeiData] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState('');
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !allowedExtensions.includes(ext)) {
+      setError('File must be .mei');
+      setScoreFile(null);
+      setScoreFormat('');
+      setMeiData('');
+      return;
+    }
+    setError('');
+    setScoreFile(file);
+    setScoreFormat(ext);
+    setUploadedFileName(file.name);
+
+    // Read file as text and store in state
+    const fileText = await file.text();
+    setMeiData(fileText);
+  };
 
   const submitData = async (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -17,27 +42,13 @@ const NewPiece: React.FC = () => {
     setError('');
     try {
       const session = await getSession();
-      if (scoreFormat === 'mei') {
-        //upload to Blob
-        
-      } else {
-        if (scoreFormat === 'krn') { 
-          //convert krn to mei
-
-        } else if (scoreFormat === 'musicxml') {
-          //convert musicxml to mei
-
-        } else if (scoreFormat === 'musedata') {
-          // convert musedata to mei
-
-        } else {
-          throw new Error('Invalid score format');
-        }
-      }
-
-      //upload to Blob
-
-      const body = { title, composer, scoreUrl, scoreFormat, email: session.user.email };
+      const body = {
+        title,
+        composer,
+        scoreFormat,
+        meiData,
+        email: session.user.email,
+      };
       const res = await fetch('/api/pieces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,20 +80,17 @@ const NewPiece: React.FC = () => {
             value={composer}
           />
           <input
-            onChange={e => setScoreUrl(e.target.value)}
-            placeholder="Score URL"
-            type="text"
-            value={scoreUrl}
+            type="file"
+            accept=".mei"
+            onChange={handleFileChange}
           />
-                    <input
-            onChange={e => setScoreFormat(e.target.value)}
-            placeholder="Score Format"
-            type="text"
-            value={scoreFormat}
+          {uploadedFileName && <p>Uploaded: {uploadedFileName}</p>}
+          {scoreFormat && <p>Detected format: {scoreFormat}</p>}
+          <input
+            disabled={saving || !title || !composer || !scoreFormat || !meiData}
+            type="submit"
+            value="Submit"
           />
-          
-          
-          <input disabled={saving || !title || !composer || !scoreUrl || !scoreFormat} type="submit" value="Submit" />
         </form>
         {error && <p style={{ color: 'red' }}>{error}</p>}
       </div>
