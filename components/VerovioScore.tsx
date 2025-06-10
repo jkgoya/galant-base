@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 
 type Props = {
-  scoreUrl: string;
+  meiUrl: string;
 };
 
 const VEROVIO_CDN = "https://www.verovio.org/javascript/app/verovio-toolkit-wasm.js";
 
-const VerovioScore: React.FC<Props> = ({ scoreUrl }) => {
+const VerovioScore: React.FC<Props> = ({ meiUrl }) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -28,12 +28,12 @@ const VerovioScore: React.FC<Props> = ({ scoreUrl }) => {
   }, []);
 
   useEffect(() => {
-    if (!scoreUrl) return;
+    if (!meiUrl) return;
     if (typeof window === "undefined" || !(window as any).verovio) return;
 
     setLoading(true);
     setError("");
-    fetch(scoreUrl)
+    fetch(meiUrl)
       .then((res) => {
         if (!res.ok) throw new Error("Could not fetch MEI file");
         return res.text();
@@ -47,7 +47,7 @@ const VerovioScore: React.FC<Props> = ({ scoreUrl }) => {
       })
       .catch(() => setError("Failed to render score."))
       .finally(() => setLoading(false));
-  }, [scoreUrl, typeof window !== "undefined" && (window as any).verovio]);
+  }, [meiUrl, typeof window !== "undefined" && (window as any).verovio]);
 
   if (loading) return <p>Loading score...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;

@@ -17,6 +17,26 @@ const NewPiece: React.FC = () => {
     setError('');
     try {
       const session = await getSession();
+      if (scoreFormat === 'mei') {
+        //upload to Blob
+        
+      } else {
+        if (scoreFormat === 'krn') { 
+          //convert krn to mei
+
+        } else if (scoreFormat === 'musicxml') {
+          //convert musicxml to mei
+
+        } else if (scoreFormat === 'musedata') {
+          // convert musedata to mei
+
+        } else {
+          throw new Error('Invalid score format');
+        }
+      }
+
+      //upload to Blob
+
       const body = { title, composer, scoreUrl, scoreFormat, email: session.user.email };
       const res = await fetch('/api/pieces', {
         method: 'POST',
