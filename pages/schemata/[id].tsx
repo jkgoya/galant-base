@@ -44,7 +44,7 @@ async function deleteGschema(id: string): Promise<void> {
   await fetch(`/api/post/gschema/${id}`, {
     method: 'DELETE',
   });
-  Router.push('/schemata');
+  Router.push('/myschemata');
 }
 
 async function publishSchema(id: string) {

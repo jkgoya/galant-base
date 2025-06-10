@@ -3,7 +3,7 @@ import Layout from '../components/Layout';
 import Router, { useRouter } from 'next/router';
 import { getSession } from 'next-auth/react';
 
-const EVENT_TYPES = ['melody', 'bass', 'meter'];
+const EVENT_TYPES = ['meter', 'melody', 'bass', 'figures', 'roman'];
 
 const CreateGschemaEvents: React.FC = () => {
   const router = useRouter();
@@ -14,6 +14,8 @@ const CreateGschemaEvents: React.FC = () => {
     melody: [],
     bass: [],
     meter: [],
+    figures: [],
+    roman: [],
   });
   const [success, setSuccess] = useState(false);
 
@@ -28,6 +30,8 @@ const CreateGschemaEvents: React.FC = () => {
         melody: Array(count).fill(''),
         bass: Array(count).fill(''),
         meter: Array(count).fill(''),
+        figures: Array(count).fill(''),
+        roman: Array(count).fill(''),
       });
     }
   }, [router.query.gschemaId, router.query.eventcount]);
@@ -60,7 +64,7 @@ const CreateGschemaEvents: React.FC = () => {
         body: JSON.stringify(body),
       });
       setSuccess(true);
-      setTimeout(() => Router.push('/'), 1500);
+      setTimeout(() => Router.push('/create_gschema'), 1500);
     } catch (error) {
       console.error(error);
     }

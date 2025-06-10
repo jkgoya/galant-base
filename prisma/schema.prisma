@@ -18,6 +18,8 @@ model Piece {
   contributorId  String?
   active         Boolean @default(false)
   scoreUrl       String
+  scoreFormat    String
+  meiUrl         String?
   gschemas       Gschema_Piece[]
 }
 

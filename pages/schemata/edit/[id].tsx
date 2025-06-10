@@ -4,7 +4,7 @@ import Layout from '../../../components/Layout';
 import prisma from '../../../lib/prisma';
 import Router from 'next/router';
 
-const EVENT_TYPES = ['melody', 'bass', 'meter'];
+const EVENT_TYPES = ['meter', 'melody', 'bass', 'figures', 'roman'];
 
 export const getServerSideProps: GetServerSideProps = async ({ params, req }) => {
   const gschema = await prisma.gschema.findUnique({
