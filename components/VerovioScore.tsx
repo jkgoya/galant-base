@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 type Props = {
   meiData: string;
@@ -11,19 +11,20 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [verovioReady, setVerovioReady] = useState(false);
-  //console.log(meiData);
+  const [page, setPage] = useState(1);
+  const [pageCount, setPageCount] = useState(1);
+  const [measureInput, setMeasureInput] = useState("");
+  const verovioToolkitRef = useRef<any>(null);
 
   // Load Verovio script if not already loaded
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // If already loaded, set ready
     if ((window as any).verovio) {
       setVerovioReady(true);
       return;
     }
 
-    // If script is already in the DOM, wait for it to load
     const existingScript = document.querySelector(`script[src="${VEROVIO_CDN}"]`);
     if (existingScript) {
       existingScript.addEventListener("load", () => setVerovioReady(true));
@@ -31,7 +32,6 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
       return;
     }
 
-    // Otherwise, add the script
     const script = document.createElement("script");
     script.src = VEROVIO_CDN;
     script.async = true;
@@ -42,24 +42,25 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
     return () => {
       script.onload = null;
       script.onerror = null;
-      // Don't remove the script, as other components may use it
     };
   }, []);
 
+  // Initialize Verovio and render the first page
   useEffect(() => {
     if (!meiData || !verovioReady) return;
     if (typeof window === "undefined" || !(window as any).verovio) return;
 
     setLoading(true);
-    console.log("loading", loading);
     setError("");
 
     try {
       // @ts-ignore
       const tk = new (window as any).verovio.toolkit();
       tk.setOptions({ scale: 40, pageHeight: 1000, pageWidth: 2000, adjustPageHeight: true });
-      console.log(tk);
       tk.loadData(meiData, {});
+      verovioToolkitRef.current = tk;
+      setPage(1);
+      setPageCount(tk.getPageCount());
       setSvg(tk.renderToSVG(1, {}));
     } catch (err) {
       setError("Failed to render score.");
@@ -67,13 +68,71 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line
   }, [meiData, verovioReady]);
 
-  if (loading) return <p>Loading score...</p>;
+  // Render the current page when page changes
+  useEffect(() => {
+    const tk = verovioToolkitRef.current;
+    if (!tk || !meiData || !verovioReady) return;
+    setLoading(true);
+    try {
+      setSvg(tk.renderToSVG(page, {}));
+    } catch (err) {
+      setError("Failed to render page.");
+      setSvg("");
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line
+  }, [page]);
+
+  const goToPrevPage = () => setPage((p) => Math.max(1, p - 1));
+  const goToNextPage = () => setPage((p) => Math.min(pageCount, p + 1));
+
+  const handleJumpToMeasure = (e: React.FormEvent) => {
+    e.preventDefault();
+    const tk = verovioToolkitRef.current;
+    if (!tk || !measureInput) return;
+    // Verovio expects measure IDs like "m1", "m2", etc.
+    const measureId = `m${measureInput}`;
+    const targetPage = tk.getPageWithElement(measureId);
+    if (targetPage > 0) {
+      setPage(targetPage);
+    } else {
+      setError("Measure not found.");
+    }
+  };
+
   if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (loading) return <p>Loading score...</p>;
   if (!svg) return <p>No score available.</p>;
 
-  return <div dangerouslySetInnerHTML={{ __html: svg }} />;
+  return (
+    <div>
+      <div style={{ marginBottom: "1rem" }}>
+        <button onClick={goToPrevPage} disabled={page <= 1}>Previous</button>
+        <span style={{ margin: "0 1rem" }}>
+          Page {page} of {pageCount}
+        </span>
+        <button onClick={goToNextPage} disabled={page >= pageCount}>Next</button>
+        <form onSubmit={handleJumpToMeasure} style={{ display: "inline-block", marginLeft: "2rem" }}>
+          <label>
+            Jump to measure:{" "}
+            <input
+              type="number"
+              min={1}
+              value={measureInput}
+              onChange={e => setMeasureInput(e.target.value)}
+              style={{ width: "4em" }}
+            />
+          </label>
+          <button type="submit" style={{ marginLeft: "0.5em" }}>Go</button>
+        </form>
+      </div>
+      <div dangerouslySetInnerHTML={{ __html: svg }} />
+    </div>
+  );
 };
 
-export default VerovioScore; 
+export default VerovioScore;

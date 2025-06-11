@@ -13,7 +13,7 @@ const Header: React.FC = () => {
   let left = (
     <div className="left">
       <Link href="/" className="bold" data-active={isActive('/')}>
-          Feed
+      Schemata
       </Link>
       <style jsx>{`
         .bold {
@@ -43,7 +43,7 @@ const Header: React.FC = () => {
     left = (
       <div className="left">
         <Link href="/" className="bold" data-active={isActive('/')}>
-            Feed
+        Schemata
         </Link>
         <style jsx>{`
           .bold {
