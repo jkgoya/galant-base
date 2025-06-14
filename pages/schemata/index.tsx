@@ -3,6 +3,7 @@ import { GetServerSideProps } from "next";
 import Layout from "../../components/Layout";
 import prisma from "../../lib/prisma";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 export const getServerSideProps: GetServerSideProps = async () => {
   const gschemas = await prisma.gschema.findMany({
@@ -36,17 +37,23 @@ type Props = {
 };
 
 const Schemata: React.FC<Props> = ({ gschemas }) => {
+  const { data: session } = useSession();
+
   return (
     <Layout>
       <div className="page">
         <h1>All Active Schemata</h1>
         <div className="actions">
-          <Link href="/schemata/mine">
-            <button>My Schemata</button>
-          </Link>
-          <Link href="/schemata/new">
-            <button>New Schema</button>
-          </Link>
+          {session && (
+            <>
+              <Link href="/schemata/mine">
+                <button>My Schemata</button>
+              </Link>
+              <Link href="/schemata/new">
+                <button>New Schema</button>
+              </Link>
+            </>
+          )}
         </div>
         <main>
           {gschemas.map((gschema) => (

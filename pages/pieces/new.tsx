@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import Router from "next/router";
-import { getSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 const allowedExtensions = ["mei", "krn"];
 
 const NewPiece: React.FC = () => {
+  const { data: session, status } = useSession();
   const [title, setTitle] = useState("");
   const [composer, setComposer] = useState("");
   const [scoreFile, setScoreFile] = useState<File | null>(null);
@@ -15,31 +16,40 @@ const NewPiece: React.FC = () => {
   const [error, setError] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
 
-  const renderVerovio = async (score: string, options: {}, request: string) => {
-    //const [data, setData] = useState("");
-    //console.log(score);
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      Router.push("/api/auth/signin");
+    }
+  }, [status]);
 
-    const response = await fetch(
-      "https://render.jkg.app/verovio",
-      //"http://localhost:3000/verovio",
-      {
-        mode: "cors",
-        method: "POST",
-        body: JSON.stringify({
-          data: score,
-          options: options,
-          request: request,
-        }),
-        headers: {
-          "Content-type": "application/json; charset=UTF-8",
-        },
-      }
+  if (status === "loading") {
+    return (
+      <Layout>
+        <div>Loading...</div>
+      </Layout>
     );
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  const renderVerovio = async (score: string, options: {}, request: string) => {
+    const response = await fetch("https://render.jkg.app/verovio", {
+      mode: "cors",
+      method: "POST",
+      body: JSON.stringify({
+        data: score,
+        options: options,
+        request: request,
+      }),
+      headers: {
+        "Content-type": "application/json; charset=UTF-8",
+      },
+    });
 
     const json = await response.json();
     return json.data;
-
-    //return(data)
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,7 +94,6 @@ const NewPiece: React.FC = () => {
     setSaving(true);
     setError("");
     try {
-      const session = await getSession();
       const body = {
         title,
         composer,

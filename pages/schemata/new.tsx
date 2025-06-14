@@ -1,19 +1,36 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import Router from "next/router";
-import { getSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 const Draft_Gschema: React.FC = () => {
+  const { data: session, status } = useSession();
   const [name, setName] = useState("");
   const [citation, setCitation] = useState("");
   const [type, setType] = useState("");
   const [events, setEvents] = useState(0);
 
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      Router.push("/api/auth/signin");
+    }
+  }, [status]);
+
+  if (status === "loading") {
+    return (
+      <Layout>
+        <div>Loading...</div>
+      </Layout>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
   const submitData = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     try {
-      const session = await getSession();
-      console.log("session", session);
       const body = { name, citation, type, events, email: session.user.email };
       const response = await fetch("/api/schemata", {
         method: "POST",

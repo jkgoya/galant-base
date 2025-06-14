@@ -1,8 +1,11 @@
 import React from "react";
 import Layout from "../components/Layout";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 const Home: React.FC = () => {
+  const { data: session } = useSession();
+
   return (
     <Layout>
       <div className="page">
@@ -14,12 +17,16 @@ const Home: React.FC = () => {
             <Link href="/schemata">
               <button>View All Schemata</button>
             </Link>
-            <Link href="/schemata/mine">
-              <button>My Schemata</button>
-            </Link>
-            <Link href="/schemata/new">
-              <button>Create New Schema</button>
-            </Link>
+            {session && (
+              <>
+                <Link href="/schemata/mine">
+                  <button>My Schemata</button>
+                </Link>
+                <Link href="/schemata/new">
+                  <button>Create New Schema</button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
         <div className="section">
@@ -29,12 +36,16 @@ const Home: React.FC = () => {
             <Link href="/pieces">
               <button>View All Pieces</button>
             </Link>
-            <Link href="/pieces/mine">
-              <button>My Pieces</button>
-            </Link>
-            <Link href="/pieces/new">
-              <button>Add New Piece</button>
-            </Link>
+            {session && (
+              <>
+                <Link href="/pieces/mine">
+                  <button>My Pieces</button>
+                </Link>
+                <Link href="/pieces/new">
+                  <button>Add New Piece</button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
