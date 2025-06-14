@@ -41,7 +41,9 @@ type Props = {
 
 const PieceDetail: React.FC<Props> = ({ piece }) => {
   const { data: session } = useSession();
-  const isContributor = session?.user?.email === piece.contributor?.email;
+  const isContributor =
+    session?.user?.email === piece.contributor?.email ||
+    (session?.user as any).isAdmin;
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this piece?")) return;

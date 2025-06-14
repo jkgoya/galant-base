@@ -111,73 +111,81 @@ const MusicSourcesPage: React.FC = () => {
     return null;
   }
 
+  const isAdmin = (session.user as any).isAdmin;
+
   return (
     <Layout>
       <div>
         <h1>Music Sources</h1>
         {error && <p style={{ color: "red" }}>{error}</p>}
-        <h2>Add New Music Source</h2>
-        <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
-          <input
-            name="name"
-            placeholder="Name"
-            value={form.name}
-            onChange={handleInput}
-            required
-          />
-          <input
-            name="description"
-            placeholder="Description"
-            value={form.description}
-            onChange={handleInput}
-          />
-          <input
-            name="baseUrl"
-            placeholder="Base URL"
-            value={form.baseUrl}
-            onChange={handleInput}
-            required
-          />
-          <input
-            name="indexFile"
-            placeholder="Index File"
-            value={form.indexFile}
-            onChange={handleInput}
-            required
-          />
-          <input
-            name="composer"
-            placeholder="Composer"
-            value={form.composer}
-            onChange={handleInput}
-            required
-          />
-          <select
-            name="format"
-            value={form.format}
-            onChange={handleInput}
-            required
-          >
-            <option value="krn">Kern</option>
-            <option value="mei">MEI</option>
-          </select>
-          <label style={{ marginLeft: "1rem" }}>
-            <input
-              type="checkbox"
-              name="active"
-              checked={form.active}
-              onChange={handleCheckbox}
-            />{" "}
-            Active
-          </label>
-          <button
-            type="submit"
-            disabled={adding}
-            style={{ marginLeft: "1rem" }}
-          >
-            {adding ? "Adding..." : "Add Source"}
-          </button>
-        </form>
+        {isAdmin ? (
+          <>
+            <h2>Add New Music Source</h2>
+            <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
+              <input
+                name="name"
+                placeholder="Name"
+                value={form.name}
+                onChange={handleInput}
+                required
+              />
+              <input
+                name="description"
+                placeholder="Description"
+                value={form.description}
+                onChange={handleInput}
+              />
+              <input
+                name="baseUrl"
+                placeholder="Base URL"
+                value={form.baseUrl}
+                onChange={handleInput}
+                required
+              />
+              <input
+                name="indexFile"
+                placeholder="Index File"
+                value={form.indexFile}
+                onChange={handleInput}
+                required
+              />
+              <input
+                name="composer"
+                placeholder="Composer"
+                value={form.composer}
+                onChange={handleInput}
+                required
+              />
+              <select
+                name="format"
+                value={form.format}
+                onChange={handleInput}
+                required
+              >
+                <option value="krn">Kern</option>
+                <option value="mei">MEI</option>
+              </select>
+              <label style={{ marginLeft: "1rem" }}>
+                <input
+                  type="checkbox"
+                  name="active"
+                  checked={form.active}
+                  onChange={handleCheckbox}
+                />{" "}
+                Active
+              </label>
+              <button
+                type="submit"
+                disabled={adding}
+                style={{ marginLeft: "1rem" }}
+              >
+                {adding ? "Adding..." : "Add Source"}
+              </button>
+            </form>
+          </>
+        ) : (
+          <p>Only administrators can add new music sources.</p>
+        )}
         <h2>Current Music Sources</h2>
         {loading ? (
           <p>Loading sources...</p>

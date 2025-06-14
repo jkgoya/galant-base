@@ -72,7 +72,9 @@ const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
     );
   const userHasValidSession = Boolean(session);
   const schemaBelongsToUser =
-    sessionEmail && gschema.contributor?.email === sessionEmail;
+    sessionEmail &&
+    (gschema.contributor?.email === sessionEmail ||
+      (session?.user as any).isAdmin);
 
   // Build event table
   const eventTable: { [type: string]: string[] } = {
