@@ -21,11 +21,11 @@ export default async function handler(
           name,
           citation,
           type,
-          author: { connect: { email } },
+          contributor: { connect: { email } },
           events: {
             create: events.map((event: any) => ({
               ...event,
-              author: { connect: { email } },
+              contributor: { connect: { email } },
             })),
           },
         },

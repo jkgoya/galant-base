@@ -20,7 +20,7 @@ export default async function handler(
         data: events.map((event: any) => ({
           ...event,
           gschemaId,
-          authorId: email,
+          contributorId: email,
         })),
       });
       res.json(result);
