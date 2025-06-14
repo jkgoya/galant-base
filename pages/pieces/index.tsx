@@ -1,8 +1,8 @@
-import React from 'react';
-import { GetServerSideProps } from 'next';
-import Layout from '../components/Layout';
-import prisma from '../lib/prisma';
-import Link from 'next/link';
+import React from "react";
+import { GetServerSideProps } from "next";
+import Layout from "../../components/Layout";
+import prisma from "../../lib/prisma";
+import Link from "next/link";
 
 export const getServerSideProps: GetServerSideProps = async () => {
   const pieces = await prisma.piece.findMany();
@@ -23,15 +23,41 @@ const Pieces: React.FC<Props> = ({ pieces }) => (
   <Layout>
     <div className="page">
       <h1>All Pieces</h1>
+      <div className="actions">
+        <Link href="/pieces/mine">
+          <button>My Pieces</button>
+        </Link>
+        <Link href="/pieces/new">
+          <button>New Piece</button>
+        </Link>
+      </div>
       <div className="card-list">
         {pieces.map((piece) => (
           <div key={piece.id} className="piece-card">
-            <h3><Link href={`/pieces/${piece.id}`}>{piece.title}</Link></h3>
+            <h3>
+              <Link href={`/pieces/${piece.id}`}>{piece.title}</Link>
+            </h3>
             <p>Composer: {piece.composer}</p>
           </div>
         ))}
       </div>
       <style jsx>{`
+        .actions {
+          margin-bottom: 2rem;
+          display: flex;
+          gap: 1rem;
+        }
+        button {
+          background: #ececec;
+          border: 0;
+          border-radius: 0.125rem;
+          padding: 1rem 2rem;
+          cursor: pointer;
+          font-size: 1rem;
+        }
+        button:hover {
+          background: #ddd;
+        }
         .card-list {
           display: flex;
           flex-wrap: wrap;
@@ -53,4 +79,4 @@ const Pieces: React.FC<Props> = ({ pieces }) => (
   </Layout>
 );
 
-export default Pieces; 
+export default Pieces;

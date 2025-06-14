@@ -1,11 +1,11 @@
-import React from 'react';
-import { GetServerSideProps } from 'next';
-import { useSession, getSession } from 'next-auth/react';
-import Layout from '../components/Layout';
-import prisma from '../lib/prisma';
-import Link from 'next/link';
+import React from "react";
+import { GetServerSideProps } from "next";
+import { useSession, getSession } from "next-auth/react";
+import Layout from "../../components/Layout";
+import prisma from "../../lib/prisma";
+import Link from "next/link";
 
-const EVENT_TYPES = ['melody', 'bass', 'meter'];
+const EVENT_TYPES = ["melody", "bass", "meter"];
 
 export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
   const session = await getSession({ req });
@@ -69,27 +69,35 @@ const Schemata: React.FC<Props> = (props) => {
           {props.gschemas.map((gschema) => {
             // Build a lookup: type -> [values by index]
             const eventTable: { [type: string]: string[] } = {
-              melody: Array(gschema.eventcount).fill(''),
-              bass: Array(gschema.eventcount).fill(''),
-              meter: Array(gschema.eventcount).fill(''),
+              melody: Array(gschema.eventcount).fill(""),
+              bass: Array(gschema.eventcount).fill(""),
+              meter: Array(gschema.eventcount).fill(""),
             };
-            gschema.events.forEach(ev => {
+            gschema.events.forEach((ev) => {
               if (eventTable[ev.type] && ev.index < gschema.eventcount) {
                 eventTable[ev.type][ev.index] = ev.value;
               }
             });
             return (
               <div key={gschema.id} className="gschema">
-                <h2><Link href={`/schemata/${gschema.id}`}>{gschema.name}</Link></h2>
+                <h2>
+                  <Link href={`/schemata/${gschema.id}`}>{gschema.name}</Link>
+                </h2>
                 <p>Type: {gschema.type}</p>
                 <p>Citation: {gschema.citation}</p>
                 <p>Event count: {gschema.eventcount}</p>
-                <p>Status: {gschema.active ? 'Active' : 'Inactive'}</p>
+                <p>Status: {gschema.active ? "Active" : "Inactive"}</p>
                 <h3>Events</h3>
-                <table style={{ width: '100%', marginBottom: '1rem', borderCollapse: 'collapse' }}>
+                <table
+                  style={{
+                    width: "100%",
+                    marginBottom: "1rem",
+                    borderCollapse: "collapse",
+                  }}
+                >
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left' }}>Type</th>
+                      <th style={{ textAlign: "left" }}>Type</th>
                       {Array.from({ length: gschema.eventcount }, (_, idx) => (
                         <th key={idx}>Event {idx + 1}</th>
                       ))}
@@ -98,10 +106,20 @@ const Schemata: React.FC<Props> = (props) => {
                   <tbody>
                     {EVENT_TYPES.map((type) => (
                       <tr key={type}>
-                        <td style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>{type}</td>
-                        {Array.from({ length: gschema.eventcount }, (_, idx) => (
-                          <td key={idx}>{eventTable[type][idx]}</td>
-                        ))}
+                        <td
+                          style={{
+                            fontWeight: "bold",
+                            textTransform: "capitalize",
+                          }}
+                        >
+                          {type}
+                        </td>
+                        {Array.from(
+                          { length: gschema.eventcount },
+                          (_, idx) => (
+                            <td key={idx}>{eventTable[type][idx]}</td>
+                          )
+                        )}
                       </tr>
                     ))}
                   </tbody>

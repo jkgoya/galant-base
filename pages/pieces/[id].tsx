@@ -1,14 +1,25 @@
-import React from 'react';
-import { GetServerSideProps } from 'next';
-import Layout from '../../components/Layout';
-import prisma from '../../lib/prisma';
-import dynamic from 'next/dynamic';
+import React from "react";
+import { GetServerSideProps } from "next";
+import Layout from "../../components/Layout";
+import prisma from "../../lib/prisma";
+import dynamic from "next/dynamic";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 
-const VerovioScore = dynamic(() => import('../../components/VerovioScore'), { ssr: false });
+const VerovioScore = dynamic(() => import("../../components/VerovioScore"), {
+  ssr: false,
+});
 
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const piece = await prisma.piece.findUnique({
     where: { id: String(params?.id) },
+    include: {
+      contributor: {
+        select: {
+          email: true,
+        },
+      },
+    },
   });
   return { props: { piece } };
 };
@@ -18,21 +29,54 @@ type PieceProps = {
   title: string;
   composer: string;
   meiData: string;
+  contributor?: {
+    email: string;
+  };
 };
 
 type Props = {
   piece: PieceProps;
 };
 
-const PieceDetail: React.FC<Props> = ({ piece }) => (
-  <Layout>
-    <div>
-      <h1>{piece.title}</h1>
-      <p>Composer: {piece.composer}</p>
-      <h3>Score</h3>
-      <VerovioScore meiData={piece.meiData} />
-    </div>
-  </Layout>
-);
+const PieceDetail: React.FC<Props> = ({ piece }) => {
+  const { data: session } = useSession();
+  const isContributor = session?.user?.email === piece.contributor?.email;
 
-export default PieceDetail; 
+  return (
+    <Layout>
+      <div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <h1>{piece.title}</h1>
+          {isContributor && (
+            <Link href={`/pieces/edit/${piece.id}`}>
+              <button style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
+                Edit Piece
+              </button>
+            </Link>
+          )}
+        </div>
+        <p>Composer: {piece.composer}</p>
+        <h3>Score</h3>
+        <VerovioScore meiData={piece.meiData} />
+      </div>
+      <style jsx>{`
+        button {
+          background: #ececec;
+          border: 0;
+          border-radius: 0.25rem;
+        }
+        button:hover {
+          background: #ddd;
+        }
+      `}</style>
+    </Layout>
+  );
+};
+
+export default PieceDetail;

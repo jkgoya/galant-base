@@ -1,79 +1,86 @@
-import React from 'react';
-import { GetServerSideProps } from 'next';
-import Layout from '../components/Layout';
-import prisma from '../lib/prisma';
-import Link from 'next/link';
+import React from "react";
+import Layout from "../components/Layout";
+import Link from "next/link";
 
-export const getServerSideProps: GetServerSideProps = async () => {
-  const gschemas = await prisma.gschema.findMany({
-    where: { active: true },
-    include: { events: true },
-  });
-  return { props: { gschemas } };
-};
-
-type GschemaEvent = {
-  id: string;
-  gschemaId: string | null;
-  index: number;
-  type: string;
-  value: string;
-};
-
-type GschemaProps = {
-  id: string;
-  name: string;
-  citation: string | null;
-  type: string;
-  eventcount: number;
-  active: boolean;
-  events: GschemaEvent[];
-  contributor?: { email?: string };
-};
-
-type Props = {
-  gschemas: GschemaProps[];
-};
-
-const Index: React.FC<Props> = ({ gschemas }) => {
-
+const Home: React.FC = () => {
   return (
     <Layout>
       <div className="page">
-        <h1>All Active Schemata</h1>
-        <main>
-          {gschemas.map((gschema) => (
-            <div key={gschema.id} className="gschema">
-              <h2><Link href={`/schemata/${gschema.id}`}>{gschema.name}</Link></h2>
-              <p>Type: {gschema.type}</p>
-              <p>Citation: {gschema.citation}</p>
-              <p>Event count: {gschema.eventcount}</p>
-              <p>Status: {gschema.active ? 'Active' : 'Inactive'}</p>
-            </div>
-          ))}
-        </main>
+        <h1>Welcome to Galant</h1>
+        <div className="section">
+          <h2>Schemata</h2>
+          <p>Explore and contribute to our collection of musical schemata.</p>
+          <div className="button-group">
+            <Link href="/schemata">
+              <button>View All Schemata</button>
+            </Link>
+            <Link href="/schemata/mine">
+              <button>My Schemata</button>
+            </Link>
+            <Link href="/schemata/new">
+              <button>Create New Schema</button>
+            </Link>
+          </div>
+        </div>
+        <div className="section">
+          <h2>Pieces</h2>
+          <p>Browse and analyze musical pieces in our database.</p>
+          <div className="button-group">
+            <Link href="/pieces">
+              <button>View All Pieces</button>
+            </Link>
+            <Link href="/pieces/mine">
+              <button>My Pieces</button>
+            </Link>
+            <Link href="/pieces/new">
+              <button>Add New Piece</button>
+            </Link>
+          </div>
+        </div>
       </div>
       <style jsx>{`
-        .gschema {
+        .page {
+          padding: 2rem;
+        }
+        .section {
           background: var(--geist-background);
           padding: 2rem;
           margin-bottom: 2rem;
           border-radius: 0.5rem;
           box-shadow: 1px 1px 3px #aaa;
         }
-        .gschema:hover {
+        .section:hover {
           box-shadow: 2px 2px 6px #888;
+        }
+        .button-group {
+          display: flex;
+          gap: 1rem;
+          margin-top: 1rem;
         }
         button {
           background: #ececec;
           border: 0;
           border-radius: 0.125rem;
           padding: 1rem 2rem;
-          margin-top: 1rem;
+          cursor: pointer;
+          font-size: 1rem;
+        }
+        button:hover {
+          background: #ddd;
+        }
+        h1 {
+          margin-bottom: 2rem;
+        }
+        h2 {
+          margin-bottom: 1rem;
+        }
+        p {
+          color: #666;
+          margin-bottom: 1rem;
         }
       `}</style>
     </Layout>
   );
 };
 
-export default Index;
+export default Home;

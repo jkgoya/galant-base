@@ -1,7 +1,7 @@
-import React from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { signOut, useSession } from 'next-auth/react';
+import React from "react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { signOut, useSession } from "next-auth/react";
 
 const Header: React.FC = () => {
   const router = useRouter();
@@ -12,8 +12,8 @@ const Header: React.FC = () => {
 
   let left = (
     <div className="left">
-      <Link href="/" className="bold" data-active={isActive('/')}>
-      Schemata
+      <Link href="/" className="bold" data-active={isActive("/")}>
+        Home
       </Link>
       <style jsx>{`
         .bold {
@@ -26,7 +26,7 @@ const Header: React.FC = () => {
           display: inline-block;
         }
 
-        .left a[data-active='true'] {
+        .left a[data-active="true"] {
           color: gray;
         }
 
@@ -39,11 +39,11 @@ const Header: React.FC = () => {
 
   let right = null;
 
-  if (status === 'loading') {
+  if (status === "loading") {
     left = (
       <div className="left">
-        <Link href="/" className="bold" data-active={isActive('/')}>
-        Schemata
+        <Link href="/" className="bold" data-active={isActive("/")}>
+          Home
         </Link>
         <style jsx>{`
           .bold {
@@ -56,7 +56,7 @@ const Header: React.FC = () => {
             display: inline-block;
           }
 
-          .left a[data-active='true'] {
+          .left a[data-active="true"] {
             color: gray;
           }
 
@@ -81,7 +81,8 @@ const Header: React.FC = () => {
   if (!session) {
     right = (
       <div className="right">
-        <Link href="/api/auth/signin" data-active={isActive('/signup')}>Log in
+        <Link href="/api/auth/signin" data-active={isActive("/signup")}>
+          Log in
         </Link>
         <style jsx>{`
           a {
@@ -111,15 +112,14 @@ const Header: React.FC = () => {
   if (session) {
     left = (
       <div className="left">
-        <Link href="/" className="bold" data-active={isActive('/')}>
-        <button>
-            Schemata
-        </button>
+        <Link href="/" className="bold" data-active={isActive("/")}>
+          <button>Home</button>
         </Link>
-        <Link href="/myschemata" data-active={isActive('/myschemata')}>
-        <button>
-          My Schemata
-        </button>
+        <Link href="/schemata" data-active={isActive("/schemata")}>
+          <button>Schemata</button>
+        </Link>
+        <Link href="/pieces" data-active={isActive("/pieces")}>
+          <button>Pieces</button>
         </Link>
         <style jsx>{`
           .bold {
@@ -132,12 +132,20 @@ const Header: React.FC = () => {
             display: inline-block;
           }
 
-          .left a[data-active='true'] {
+          .left a[data-active="true"] {
             color: gray;
           }
 
           button {
             border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+          }
+
+          button:hover {
+            color: gray;
           }
 
           a + a {
@@ -151,11 +159,6 @@ const Header: React.FC = () => {
         <p>
           {session.user.name} ({session.user.email})
         </p>
-        <Link href="/create_gschema">
-          <button>
-            New schema
-          </button>
-        </Link>
         <button onClick={() => signOut()}>
           <a>Log out</a>
         </button>
@@ -180,14 +183,16 @@ const Header: React.FC = () => {
             margin-left: auto;
           }
 
-          .right a {
-            border: 1px solid var(--geist-foreground);
-            padding: 0.5rem 1rem;
-            border-radius: 3px;
-          }
-
           button {
             border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+          }
+
+          button:hover {
+            color: gray;
           }
         `}</style>
       </div>

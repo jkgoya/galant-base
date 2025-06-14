@@ -1,45 +1,151 @@
-import React, { useState } from 'react';
-import Layout from '../../components/Layout';
-import Router from 'next/router';
-import { getSession } from 'next-auth/react';
+import React, { useState, useEffect } from "react";
+import Layout from "../../components/Layout";
+import Router from "next/router";
+import { getSession } from "next-auth/react";
 
-const allowedExtensions = ['mei'];
+const allowedExtensions = ["mei", "krn"];
+const VEROVIO_CDN =
+  "https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js";
 
 const NewPiece: React.FC = () => {
-  const [title, setTitle] = useState('');
-  const [composer, setComposer] = useState('');
+  const [title, setTitle] = useState("");
+  const [composer, setComposer] = useState("");
   const [scoreFile, setScoreFile] = useState<File | null>(null);
-  const [scoreFormat, setScoreFormat] = useState('');
-  const [meiData, setMeiData] = useState('');
+  const [scoreFormat, setScoreFormat] = useState("");
+  const [meiData, setMeiData] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [error, setError] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState("");
+  const [verovioReady, setVerovioReady] = useState(false);
+
+  // Load Verovio script
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const loadVerovio = async () => {
+      try {
+        if ((window as any).verovio) {
+          setVerovioReady(true);
+          return;
+        }
+
+        const existingScript = document.querySelector(
+          `script[src="${VEROVIO_CDN}"]`
+        );
+        if (existingScript) {
+          existingScript.addEventListener("load", () => setVerovioReady(true));
+          existingScript.addEventListener("error", () =>
+            setError("Failed to load Verovio script.")
+          );
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = VEROVIO_CDN;
+        script.async = true;
+        script.onload = () => setVerovioReady(true);
+        script.onerror = () => setError("Failed to load Verovio script.");
+        document.body.appendChild(script);
+
+        return () => {
+          script.onload = null;
+          script.onerror = null;
+        };
+      } catch (err) {
+        setError("Failed to initialize Verovio");
+      }
+    };
+
+    loadVerovio();
+  }, []);
+
+  const convertKrnToMei = async (krnData: string): Promise<string> => {
+    if (!verovioReady || !(window as any).verovio) {
+      throw new Error("Verovio not ready");
+    }
+
+    try {
+      const tk = new (window as any).verovio.toolkit();
+      console.log("Verovio toolkit loaded");
+
+      // Wait for toolkit to be ready
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Load the data with explicit format
+      const success = await tk.loadData(krnData, { format: "kern" });
+      console.log("Load data result:", success);
+
+      if (!success) {
+        const error = tk.getLog();
+        console.error("Verovio load error:", error);
+        throw new Error(`Failed to load Kern data: ${error}`);
+      }
+
+      // Wait for data to be fully loaded
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Verify data is loaded
+      const loadedData = tk.getHumdrum();
+      if (!loadedData) {
+        throw new Error("Data not loaded properly");
+      }
+
+      const mei = tk.getMEI();
+      console.log("MEI generated");
+      return mei;
+    } catch (err) {
+      console.error("Verovio conversion error:", err);
+      throw new Error(
+        "Failed to convert Kern to MEI: " + (err as Error).message
+      );
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const ext = file.name.split('.').pop()?.toLowerCase();
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
     if (!ext || !allowedExtensions.includes(ext)) {
-      setError('File must be .mei');
+      setError("File must be .mei or .krn");
       setScoreFile(null);
-      setScoreFormat('');
-      setMeiData('');
+      setScoreFormat("");
+      setMeiData("");
       return;
     }
-    setError('');
+
+    setError("");
     setScoreFile(file);
     setScoreFormat(ext);
     setUploadedFileName(file.name);
 
-    // Read file as text and store in state
-    const fileText = await file.text();
-    setMeiData(fileText);
+    try {
+      const fileText = await file.text();
+      console.log("File content:", fileText.substring(0, 200) + "...");
+
+      if (ext === "krn") {
+        if (!verovioReady) {
+          setError("Please wait for Verovio to load");
+          return;
+        }
+        const meiData = await convertKrnToMei(fileText);
+        setMeiData(meiData);
+      } else {
+        setMeiData(fileText);
+      }
+    } catch (err) {
+      console.error("File processing error:", err);
+      setError("Failed to process file: " + (err as Error).message);
+      setScoreFile(null);
+      setScoreFormat("");
+      setMeiData("");
+    }
   };
 
   const submitData = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError('');
+    setError("");
     try {
       const session = await getSession();
       const body = {
@@ -49,15 +155,15 @@ const NewPiece: React.FC = () => {
         meiData,
         email: session.user.email,
       };
-      const res = await fetch('/api/pieces', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/pieces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('Failed to create piece');
-      Router.push('/pieces');
+      if (!res.ok) throw new Error("Failed to create piece");
+      Router.push("/pieces");
     } catch (err) {
-      setError('Failed to create piece');
+      setError("Failed to create piece");
       setSaving(false);
     }
   };
@@ -68,22 +174,18 @@ const NewPiece: React.FC = () => {
         <h1>Submit New Piece</h1>
         <form onSubmit={submitData}>
           <input
-            onChange={e => setTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
             type="text"
             value={title}
           />
           <input
-            onChange={e => setComposer(e.target.value)}
+            onChange={(e) => setComposer(e.target.value)}
             placeholder="Composer"
             type="text"
             value={composer}
           />
-          <input
-            type="file"
-            accept=".mei"
-            onChange={handleFileChange}
-          />
+          <input type="file" accept=".mei,.krn" onChange={handleFileChange} />
           {uploadedFileName && <p>Uploaded: {uploadedFileName}</p>}
           {scoreFormat && <p>Detected format: {scoreFormat}</p>}
           <input
@@ -92,17 +194,17 @@ const NewPiece: React.FC = () => {
             value="Submit"
           />
         </form>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <p style={{ color: "red" }}>{error}</p>}
       </div>
       <style jsx>{`
-        input[type='text'] {
+        input[type="text"] {
           width: 100%;
           padding: 0.5rem;
           margin: 0.5rem 0;
           border-radius: 0.25rem;
           border: 0.125rem solid rgba(0, 0, 0, 0.2);
         }
-        input[type='submit'] {
+        input[type="submit"] {
           background: #ececec;
           border: 0;
           padding: 1rem 2rem;
@@ -112,4 +214,4 @@ const NewPiece: React.FC = () => {
   );
 };
 
-export default NewPiece; 
+export default NewPiece;

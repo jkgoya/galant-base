@@ -1,28 +1,29 @@
-import React, { useState } from 'react';
-import Layout from '../components/Layout';
-import Router from 'next/router';
-import { getSession } from 'next-auth/react';
-
+import React, { useState } from "react";
+import Layout from "../../components/Layout";
+import Router from "next/router";
+import { getSession } from "next-auth/react";
 
 const Draft_Gschema: React.FC = () => {
-  const [name, setName] = useState('');
-  const [citation, setCitation] = useState('');
-  const [type, setType] = useState('');
+  const [name, setName] = useState("");
+  const [citation, setCitation] = useState("");
+  const [type, setType] = useState("");
   const [events, setEvents] = useState(0);
 
   const submitData = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     try {
       const session = await getSession();
-      console.log('session', session);
-      const body = { name, citation, type, events, email:session.user.email };
-      const response = await fetch('/api/post/gschema', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      console.log("session", session);
+      const body = { name, citation, type, events, email: session.user.email };
+      const response = await fetch("/api/post/gschema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await response.json();
-      await Router.push(`/create_gschema_events?gschemaId=${data.id}&eventcount=${data.eventcount}`);
+      await Router.push(
+        `/schemata/new_events?gschemaId=${data.id}&eventcount=${data.eventcount}`
+      );
     } catch (error) {
       console.error(error);
     }
@@ -59,8 +60,12 @@ const Draft_Gschema: React.FC = () => {
             type="number"
             value={events}
           />
-          <input disabled={!citation || !name || !type || !events} type="submit" value="Create" />
-          <a className="back" href="#" onClick={() => Router.push('/')}>
+          <input
+            disabled={!citation || !name || !type || !events}
+            type="submit"
+            value="Create"
+          />
+          <a className="back" href="#" onClick={() => Router.push("/")}>
             or Cancel
           </a>
         </form>
@@ -74,7 +79,7 @@ const Draft_Gschema: React.FC = () => {
           align-items: center;
         }
 
-        input[type='text'],
+        input[type="text"],
         textarea {
           width: 100%;
           padding: 0.5rem;
@@ -83,7 +88,7 @@ const Draft_Gschema: React.FC = () => {
           border: 0.125rem solid rgba(0, 0, 0, 0.2);
         }
 
-        input[type='submit'] {
+        input[type="submit"] {
           background: #ececec;
           border: 0;
           padding: 1rem 2rem;

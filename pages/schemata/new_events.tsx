@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import Layout from '../components/Layout';
-import Router, { useRouter } from 'next/router';
-import { getSession } from 'next-auth/react';
+import React, { useState, useEffect } from "react";
+import Layout from "../../components/Layout";
+import Router, { useRouter } from "next/router";
+import { getSession } from "next-auth/react";
 
-const EVENT_TYPES = ['meter', 'melody', 'bass', 'figures', 'roman'];
+const EVENT_TYPES = ["meter", "melody", "bass", "figures", "roman"];
 
 const CreateGschemaEvents: React.FC = () => {
   const router = useRouter();
-  const [gschemaId, setGschemaId] = useState('');
+  const [gschemaId, setGschemaId] = useState("");
   const [eventcount, setEventcount] = useState(1);
   // values[type][index] = value
   const [values, setValues] = useState<{ [type: string]: string[] }>({
@@ -27,11 +27,11 @@ const CreateGschemaEvents: React.FC = () => {
       const count = parseInt(router.query.eventcount as string);
       setEventcount(count);
       setValues({
-        melody: Array(count).fill(''),
-        bass: Array(count).fill(''),
-        meter: Array(count).fill(''),
-        figures: Array(count).fill(''),
-        roman: Array(count).fill(''),
+        melody: Array(count).fill(""),
+        bass: Array(count).fill(""),
+        meter: Array(count).fill(""),
+        figures: Array(count).fill(""),
+        roman: Array(count).fill(""),
       });
     }
   }, [router.query.gschemaId, router.query.eventcount]);
@@ -58,20 +58,20 @@ const CreateGschemaEvents: React.FC = () => {
         }))
       );
       const body = { gschemaId, events, email: session.user.email };
-      await fetch('/api/post/gschema_event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/post/gschema_event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       setSuccess(true);
-      setTimeout(() => Router.push('/create_gschema'), 1500);
+      setTimeout(() => Router.push("/schemata/new"), 1500);
     } catch (error) {
       console.error(error);
     }
   };
 
   // Check if all values are filled
-  const allFilled = EVENT_TYPES.every(type => values[type]?.every(v => v));
+  const allFilled = EVENT_TYPES.every((type) => values[type]?.every((v) => v));
 
   return (
     <Layout>
@@ -84,10 +84,16 @@ const CreateGschemaEvents: React.FC = () => {
             value={gschemaId}
             readOnly
           />
-          <table style={{ width: '100%', marginBottom: '1rem', borderCollapse: 'collapse' }}>
+          <table
+            style={{
+              width: "100%",
+              marginBottom: "1rem",
+              borderCollapse: "collapse",
+            }}
+          >
             <thead>
               <tr>
-                <th style={{ textAlign: 'left' }}>Type</th>
+                <th style={{ textAlign: "left" }}>Type</th>
                 {Array.from({ length: eventcount }, (_, idx) => (
                   <th key={idx}>Event {idx + 1}</th>
                 ))}
@@ -96,14 +102,20 @@ const CreateGschemaEvents: React.FC = () => {
             <tbody>
               {EVENT_TYPES.map((type) => (
                 <tr key={type}>
-                  <td style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>{type}</td>
+                  <td
+                    style={{ fontWeight: "bold", textTransform: "capitalize" }}
+                  >
+                    {type}
+                  </td>
                   {Array.from({ length: eventcount }, (_, idx) => (
                     <td key={idx}>
                       <input
                         type="text"
-                        value={values[type]?.[idx] || ''}
-                        onChange={e => handleValueChange(type, idx, e.target.value)}
-                        style={{ width: '100%' }}
+                        value={values[type]?.[idx] || ""}
+                        onChange={(e) =>
+                          handleValueChange(type, idx, e.target.value)
+                        }
+                        style={{ width: "100%" }}
                       />
                     </td>
                   ))}
@@ -116,7 +128,9 @@ const CreateGschemaEvents: React.FC = () => {
             type="submit"
             value="Create Events"
           />
-          <a className="back" href="#" onClick={() => Router.push('/')}>or Cancel</a>
+          <a className="back" href="#" onClick={() => Router.push("/")}>
+            or Cancel
+          </a>
         </form>
         {success && <p>Events created! Redirecting...</p>}
       </div>
@@ -128,13 +142,16 @@ const CreateGschemaEvents: React.FC = () => {
           justify-content: center;
           align-items: center;
         }
-        input[type='text'], input[type='number'], select {
+        input[type="text"],
+        input[type="number"],
+        select {
           padding: 0.5rem;
           margin: 0.5rem 0;
           border-radius: 0.25rem;
           border: 0.125rem solid rgba(0, 0, 0, 0.2);
         }
-        input[type='submit'], button {
+        input[type="submit"],
+        button {
           background: #ececec;
           border: 0;
           padding: 1rem 2rem;
@@ -142,10 +159,13 @@ const CreateGschemaEvents: React.FC = () => {
         .back {
           margin-left: 1rem;
         }
-        table, th, td {
+        table,
+        th,
+        td {
           border: 1px solid #eee;
         }
-        th, td {
+        th,
+        td {
           padding: 0.5rem;
         }
       `}</style>
@@ -153,4 +173,4 @@ const CreateGschemaEvents: React.FC = () => {
   );
 };
 
-export default CreateGschemaEvents; 
+export default CreateGschemaEvents;

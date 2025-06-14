@@ -4,7 +4,8 @@ type Props = {
   meiData: string;
 };
 
-const VEROVIO_CDN = "https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js";
+const VEROVIO_CDN =
+  "https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js";
 
 const VerovioScore: React.FC<Props> = ({ meiData }) => {
   const [svg, setSvg] = useState<string>("");
@@ -25,10 +26,14 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
       return;
     }
 
-    const existingScript = document.querySelector(`script[src="${VEROVIO_CDN}"]`);
+    const existingScript = document.querySelector(
+      `script[src="${VEROVIO_CDN}"]`
+    );
     if (existingScript) {
       existingScript.addEventListener("load", () => setVerovioReady(true));
-      existingScript.addEventListener("error", () => setError("Failed to load Verovio script."));
+      existingScript.addEventListener("error", () =>
+        setError("Failed to load Verovio script.")
+      );
       return;
     }
 
@@ -56,7 +61,12 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
     try {
       // @ts-ignore
       const tk = new (window as any).verovio.toolkit();
-      tk.setOptions({ scale: 40, pageHeight: 1000, pageWidth: 2000, adjustPageHeight: true });
+      tk.setOptions({
+        scale: 40,
+        pageHeight: 1000,
+        pageWidth: 2000,
+        adjustPageHeight: true,
+      });
       tk.loadData(meiData, {});
       verovioToolkitRef.current = tk;
       setPage(1);
@@ -111,23 +121,32 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
   return (
     <div>
       <div style={{ marginBottom: "1rem" }}>
-        <button onClick={goToPrevPage} disabled={page <= 1}>Previous</button>
+        <button onClick={goToPrevPage} disabled={page <= 1}>
+          Previous
+        </button>
         <span style={{ margin: "0 1rem" }}>
           Page {page} of {pageCount}
         </span>
-        <button onClick={goToNextPage} disabled={page >= pageCount}>Next</button>
-        <form onSubmit={handleJumpToMeasure} style={{ display: "inline-block", marginLeft: "2rem" }}>
+        <button onClick={goToNextPage} disabled={page >= pageCount}>
+          Next
+        </button>
+        <form
+          onSubmit={handleJumpToMeasure}
+          style={{ display: "inline-block", marginLeft: "2rem" }}
+        >
           <label>
             Jump to measure:{" "}
             <input
               type="number"
               min={1}
               value={measureInput}
-              onChange={e => setMeasureInput(e.target.value)}
+              onChange={(e) => setMeasureInput(e.target.value)}
               style={{ width: "4em" }}
             />
           </label>
-          <button type="submit" style={{ marginLeft: "0.5em" }}>Go</button>
+          <button type="submit" style={{ marginLeft: "0.5em" }}>
+            Go
+          </button>
         </form>
       </div>
       <div dangerouslySetInnerHTML={{ __html: svg }} />
