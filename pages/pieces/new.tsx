@@ -26,15 +26,14 @@ const NewPiece: React.FC = () => {
   const { data: session, status } = useSession();
   const [title, setTitle] = useState("");
   const [composer, setComposer] = useState("");
-  const [scoreFormat, setScoreFormat] = useState("");
+  const [scoreFormat, setScoreFormat] = useState<string | null>(null);
   const [meiData, setMeiData] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [musicSources, setMusicSources] = useState<MusicSource[]>([]);
   const [musicPieces, setMusicPieces] = useState<MusicPiece[]>([]);
-  const [loadingPieces, setLoadingPieces] = useState(false);
   const [selectedSource, setSelectedSource] = useState<string>("");
+  const [selectedPiece, setSelectedPiece] = useState<MusicPiece | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -58,41 +57,84 @@ const NewPiece: React.FC = () => {
 
   useEffect(() => {
     const fetchMusicPieces = async (source: MusicSource) => {
-      setLoadingPieces(true);
       try {
-        const response = await fetch(`${source.baseUrl}/${source.indexFile}`);
+        console.log("Starting to fetch music pieces for source:", source);
+        setError(null);
+        const response = await fetch(source.indexFile);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch index file: ${response.statusText}`);
+        }
         const text = await response.text();
+        console.log(
+          "Received index file content:",
+          text.substring(0, 200) + "..."
+        );
 
+        // Parse the index file
         const pieces: MusicPiece[] = [];
         const lines = text.split("\n");
-        let currentPiece: Partial<MusicPiece> = {};
+        console.log("Total lines in index file:", lines.length);
 
+        // Process each line
         for (const line of lines) {
-          if (line.startsWith("!!!OTL:")) {
-            if (currentPiece.title) {
-              pieces.push(currentPiece as MusicPiece);
+          // Skip empty lines and comments
+          if (!line.trim() || line.startsWith("!")) {
+            console.log("Skipping line:", line);
+            continue;
+          }
+
+          // Look for lines containing .krn files
+          if (line.includes(".krn")) {
+            const parts = line.split(/\t+/);
+            console.log("Found .krn line, parts:", parts);
+
+            // Find the .krn file path
+            const krnFile = parts.find((part) => part.endsWith(".krn"));
+            if (krnFile) {
+              // Extract piece information
+              const fileName =
+                krnFile.split("/").pop()?.replace(".krn", "") || "";
+              const pieceNumber = fileName.match(/n(\d+)/)?.[1] || "";
+
+              // Get movement info from the last field
+              const lastField = parts[4];
+              const movementInfo = lastField.includes("Y .")
+                ? lastField.split("Y .")[1].trim()
+                : lastField;
+              console.log("Raw movement info:", movementInfo);
+
+              // Clean up movement info
+              const cleanMovementInfo = movementInfo
+                .replace(/<link>/g, "") // Remove <link> tags
+                .replace(/xxx/g, "") // Remove "xxx"
+                .replace(/\s+/g, " ") // Normalize whitespace
+                .trim();
+
+              console.log("Cleaned movement info:", cleanMovementInfo);
+
+              // Create a descriptive title
+              const title = `${source.composer} - Op. ${fileName
+                .split("n")[0]
+                .replace("op", "")}, No. ${pieceNumber} ${cleanMovementInfo}`;
+
+              const piece: MusicPiece = {
+                source: source.id,
+                title: title,
+                composer: source.composer,
+                url: `${source.baseUrl}/${krnFile}`,
+              };
+
+              console.log("Created piece:", piece);
+              pieces.push(piece);
             }
-            currentPiece = {
-              title: line.replace("!!!OTL:", "").trim(),
-              composer: source.composer,
-              url: "",
-              source: source.id,
-            };
-          } else if (line.startsWith("!!!ONM:")) {
-            currentPiece.url = line.replace("!!!ONM:", "").trim();
           }
         }
 
-        if (currentPiece.title) {
-          pieces.push(currentPiece as MusicPiece);
-        }
-
+        console.log("Final pieces array:", pieces);
         setMusicPieces(pieces);
-      } catch (err) {
-        console.error(`Error fetching pieces from ${source.name}:`, err);
-        setError(`Failed to load pieces from ${source.name}`);
-      } finally {
-        setLoadingPieces(false);
+      } catch (error) {
+        console.error("Error fetching music pieces:", error);
+        setError("Failed to fetch music pieces. Please try again.");
       }
     };
 
@@ -101,39 +143,64 @@ const NewPiece: React.FC = () => {
       if (source) {
         fetchMusicPieces(source);
       }
-    } else {
-      setMusicPieces([]);
     }
-  }, [selectedSource, musicSources]);
+  }, [selectedSource]);
 
   const handleSourceChange = (sourceId: string) => {
     setSelectedSource(sourceId);
     setTitle("");
     setComposer("");
-    setScoreFormat("");
+    setScoreFormat(null);
     setMeiData("");
     setUploadedFileName("");
+    setSelectedPiece(null);
   };
 
-  const handlePieceSelect = async (url: string) => {
+  const handlePieceSelect = async (piece: MusicPiece) => {
     try {
-      const source = musicSources.find((s) => s.id === selectedSource);
-      if (!source) return;
+      console.log("Selected piece:", piece);
+      setError(null);
 
-      const response = await fetch(`${source.baseUrl}/${url}`);
-      const text = await response.text();
-
-      const piece = musicPieces.find((p) => p.url === url);
-      if (piece) {
-        setTitle(piece.title);
-        setComposer(piece.composer);
-        setScoreFormat(source.format);
-        setMeiData(text);
-        setUploadedFileName(url);
+      // Fetch the .krn file content
+      console.log("Fetching .krn file from:", piece.url);
+      const response = await fetch(piece.url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch .krn file: ${response.statusText}`);
       }
-    } catch (err) {
-      console.error("Error loading piece:", err);
-      setError("Failed to load selected piece");
+      const krnContent = await response.text();
+      console.log(
+        "Received .krn content:",
+        krnContent.substring(0, 200) + "..."
+      );
+
+      const meiData = await renderVerovio(krnContent, {}, "mei");
+
+      // Create the piece
+      console.log("Creating piece in database...");
+      const pieceResponse = await fetch("/api/pieces", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: piece.title,
+          composer: piece.composer,
+          scoreFormat: "krn",
+          meiData: meiData,
+          email: session?.user?.email,
+        }),
+      });
+
+      if (!pieceResponse.ok) {
+        throw new Error("Failed to create piece");
+      }
+      console.log("Piece created successfully");
+
+      // Redirect to the pieces page
+      Router.push("/pieces");
+    } catch (error) {
+      console.error("Error in handlePieceSelect:", error);
+      setError("Failed to process the selected piece. Please try again.");
     }
   };
 
@@ -174,7 +241,7 @@ const NewPiece: React.FC = () => {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!ext || !allowedExtensions.includes(ext)) {
       setError("File must be .mei or .krn");
-      setScoreFormat("");
+      setScoreFormat(null);
       setMeiData("");
       return;
     }
@@ -196,14 +263,13 @@ const NewPiece: React.FC = () => {
     } catch (err) {
       console.error("File processing error:", err);
       setError("Failed to process file: " + (err as Error).message);
-      setScoreFormat("");
+      setScoreFormat(null);
       setMeiData("");
     }
   };
 
   const submitData = async (e: React.SyntheticEvent) => {
     e.preventDefault();
-    setSaving(true);
     setError("");
     try {
       const body = {
@@ -222,7 +288,6 @@ const NewPiece: React.FC = () => {
       Router.push("/pieces");
     } catch (err) {
       setError("Failed to create piece");
-      setSaving(false);
     }
   };
 
@@ -247,21 +312,25 @@ const NewPiece: React.FC = () => {
 
             {selectedSource && (
               <div className="subsection">
-                {loadingPieces ? (
-                  <p>Loading pieces...</p>
-                ) : (
-                  <select
-                    onChange={(e) => handlePieceSelect(e.target.value)}
-                    value=""
-                  >
-                    <option value="">Select a piece...</option>
-                    {musicPieces.map((piece, index) => (
-                      <option key={index} value={piece.url}>
-                        {piece.title}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  value={selectedPiece?.url || ""}
+                  onChange={(e) => {
+                    const piece = musicPieces.find(
+                      (p) => p.url === e.target.value
+                    );
+                    if (piece) {
+                      handlePieceSelect(piece);
+                    }
+                  }}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                >
+                  <option value="">Select a piece...</option>
+                  {musicPieces.map((piece) => (
+                    <option key={piece.url} value={piece.url}>
+                      {piece.title}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
@@ -285,11 +354,15 @@ const NewPiece: React.FC = () => {
 
           {uploadedFileName && <p>Uploaded: {uploadedFileName}</p>}
           {scoreFormat && <p>Detected format: {scoreFormat}</p>}
-          <input
-            disabled={saving || !title || !composer || !scoreFormat || !meiData}
-            type="submit"
-            value="Submit"
-          />
+          <div className="mt-4">
+            <button
+              type="submit"
+              disabled={!session?.user?.email}
+              className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+            >
+              Upload Piece
+            </button>
+          </div>
         </form>
         {error && <p style={{ color: "red" }}>{error}</p>}
       </div>
