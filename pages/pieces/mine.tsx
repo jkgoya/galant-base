@@ -9,7 +9,6 @@ type PieceProps = {
   id: string;
   title: string;
   composer: string;
-  createdAt: Date;
 };
 
 type Props = {
@@ -31,17 +30,11 @@ export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
     where: {
       contributor: { email: session.user.email },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
   });
 
   return {
     props: {
-      pieces: pieces.map((piece) => ({
-        ...piece,
-        createdAt: piece.createdAt.toISOString(),
-      })),
+      pieces,
     },
   };
 };
@@ -80,9 +73,6 @@ const MyPieces: React.FC<Props> = ({ pieces }) => {
                     <Link href={`/pieces/${piece.id}`}>{piece.title}</Link>
                   </h2>
                   <p>Composer: {piece.composer}</p>
-                  <p>
-                    Submitted: {new Date(piece.createdAt).toLocaleDateString()}
-                  </p>
                 </div>
               ))}
             </div>
