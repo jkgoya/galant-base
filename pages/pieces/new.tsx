@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import Router from "next/router";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 const allowedExtensions = ["mei", "krn"];
 
@@ -30,7 +31,7 @@ const NewPiece: React.FC = () => {
   const [scoreFormat, setScoreFormat] = useState<string | null>(null);
   const [meiData, setMeiData] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | React.ReactNode | null>(null);
   const [musicSources, setMusicSources] = useState<MusicSource[]>([]);
   const [musicPieces, setMusicPieces] = useState<MusicPiece[]>([]);
   const [selectedSource, setSelectedSource] = useState<string>("");
@@ -195,7 +196,7 @@ const NewPiece: React.FC = () => {
       console.log("Selected piece:", piece);
       setError(null);
 
-      // Fetch the .krn file content
+      // Fetch the .krn file
       console.log("Fetching .krn file from:", piece.url);
       const response = await fetch(piece.url);
       if (!response.ok) {
@@ -207,36 +208,47 @@ const NewPiece: React.FC = () => {
         krnContent.substring(0, 200) + "..."
       );
 
+      // Convert to MEI
+      console.log("Converting to MEI...");
       const meiData = await renderVerovio(krnContent, {}, "mei");
       console.log("MEI data:", meiData.substring(0, 200) + "...");
       console.log(meiData.length);
 
       // Create the piece
       console.log("Creating piece in database...");
-      const pieceResponse = await fetch("/api/pieces", {
+      const createResponse = await fetch("/api/pieces", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: piece.title,
           composer: piece.composer,
-          scoreFormat: "krn",
-          meiData: meiData,
+          meiData,
           email: session?.user?.email,
         }),
       });
 
-      if (!pieceResponse.ok) {
-        throw new Error("Failed to create piece");
+      if (!createResponse.ok) {
+        const data = await createResponse.json();
+        if (createResponse.status === 400 && data.existingPieceId) {
+          setError(
+            <>
+              This piece has already been added.{" "}
+              <Link href={`/pieces/${data.existingPieceId}`}>
+                Click here to view it
+              </Link>
+            </>
+          );
+        } else {
+          throw new Error(data.error || "Failed to create piece");
+        }
+        return;
       }
-      console.log("Piece created successfully");
 
-      // Redirect to the pieces page
-      Router.push("/pieces");
+      // Redirect to pieces page on success
+      await Router.push("/pieces");
     } catch (error) {
-      console.error("Error in handlePieceSelect:", error);
-      setError("Failed to process the selected piece. Please try again.");
+      console.error("Error processing piece:", error);
+      setError(error.message || "Failed to process piece");
     }
   };
 
@@ -306,24 +318,41 @@ const NewPiece: React.FC = () => {
 
   const submitData = async (e: React.SyntheticEvent) => {
     e.preventDefault();
-    setError("");
+    setError(null);
     try {
       const body = {
         title,
         composer,
-        scoreFormat,
         meiData,
-        email: session.user.email,
+        email: session?.user?.email,
       };
-      const res = await fetch("/api/pieces", {
+      const response = await fetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Failed to create piece");
-      Router.push("/pieces");
-    } catch (err) {
-      setError("Failed to create piece");
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status === 400 && data.existingPieceId) {
+          setError(
+            <>
+              This piece has already been added.{" "}
+              <Link href={`/pieces/${data.existingPieceId}`}>
+                Click here to view it
+              </Link>
+            </>
+          );
+        } else {
+          throw new Error(data.error || "Failed to create piece");
+        }
+        return;
+      }
+
+      await Router.push("/pieces");
+    } catch (error) {
+      console.error("Error creating piece:", error);
+      setError(error.message || "Failed to create piece");
     }
   };
 
@@ -386,58 +415,66 @@ const NewPiece: React.FC = () => {
               value={composer}
             />
             <input type="file" accept=".mei,.krn" onChange={handleFileChange} />
+            <div className="mt-4">
+              <button
+                type="submit"
+                disabled={!session?.user?.email}
+                className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                Upload Piece
+              </button>
+            </div>
           </div>
 
           {uploadedFileName && <p>Uploaded: {uploadedFileName}</p>}
           {scoreFormat && <p>Detected format: {scoreFormat}</p>}
-          <div className="mt-4">
-            <button
-              type="submit"
-              disabled={!session?.user?.email}
-              className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
-            >
-              Upload Piece
-            </button>
-          </div>
         </form>
         {error && <p style={{ color: "red" }}>{error}</p>}
       </div>
       <style jsx>{`
+        .page {
+          padding: 2rem;
+        }
         .section {
           margin-bottom: 2rem;
-          padding: 1rem;
-          border: 1px solid #eee;
-          border-radius: 0.5rem;
         }
-        .subsection {
-          margin-top: 1rem;
-          padding-top: 1rem;
-          border-top: 1px solid #eee;
-        }
-        h2 {
-          margin-top: 0;
-          font-size: 1.2rem;
+        .section h2 {
           margin-bottom: 1rem;
+        }
+        input[type="text"],
+        input[type="file"] {
+          width: 100%;
+          padding: 0.5rem;
+          margin-bottom: 1rem;
+          border: 1px solid #ccc;
+          border-radius: 0.25rem;
+        }
+        .button-group {
+          display: flex;
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+        button {
+          padding: 0.5rem 1rem;
+          border: none;
+          border-radius: 0.25rem;
+          background-color: #4f46e5;
+          color: white;
+          cursor: pointer;
+        }
+        button:hover {
+          background-color: #4338ca;
+        }
+        button:disabled {
+          background-color: #9ca3af;
+          cursor: not-allowed;
         }
         select {
           width: 100%;
           padding: 0.5rem;
-          margin: 0.5rem 0;
+          margin-bottom: 1rem;
+          border: 1px solid #ccc;
           border-radius: 0.25rem;
-          border: 0.125rem solid rgba(0, 0, 0, 0.2);
-        }
-        input[type="text"] {
-          width: 100%;
-          padding: 0.5rem;
-          margin: 0.5rem 0;
-          border-radius: 0.25rem;
-          border: 0.125rem solid rgba(0, 0, 0, 0.2);
-        }
-        input[type="submit"] {
-          background: #ececec;
-          border: 0;
-          padding: 1rem 2rem;
-          margin-top: 1rem;
         }
       `}</style>
     </Layout>
