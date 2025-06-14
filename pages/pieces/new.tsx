@@ -4,8 +4,6 @@ import Router from "next/router";
 import { getSession } from "next-auth/react";
 
 const allowedExtensions = ["mei", "krn"];
-const VEROVIO_CDN =
-  "https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js";
 
 const NewPiece: React.FC = () => {
   const [title, setTitle] = useState("");
@@ -16,89 +14,32 @@ const NewPiece: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
-  const [verovioReady, setVerovioReady] = useState(false);
 
-  // Load Verovio script
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const renderVerovio = async (score: string, options: {}, request: string) => {
+    //const [data, setData] = useState("");
+    //console.log(score);
 
-    const loadVerovio = async () => {
-      try {
-        if ((window as any).verovio) {
-          setVerovioReady(true);
-          return;
-        }
-
-        const existingScript = document.querySelector(
-          `script[src="${VEROVIO_CDN}"]`
-        );
-        if (existingScript) {
-          existingScript.addEventListener("load", () => setVerovioReady(true));
-          existingScript.addEventListener("error", () =>
-            setError("Failed to load Verovio script.")
-          );
-          return;
-        }
-
-        const script = document.createElement("script");
-        script.src = VEROVIO_CDN;
-        script.async = true;
-        script.onload = () => setVerovioReady(true);
-        script.onerror = () => setError("Failed to load Verovio script.");
-        document.body.appendChild(script);
-
-        return () => {
-          script.onload = null;
-          script.onerror = null;
-        };
-      } catch (err) {
-        setError("Failed to initialize Verovio");
+    const response = await fetch(
+      "https://render.jkg.app/verovio",
+      //"http://localhost:3000/verovio",
+      {
+        mode: "cors",
+        method: "POST",
+        body: JSON.stringify({
+          data: score,
+          options: options,
+          request: request,
+        }),
+        headers: {
+          "Content-type": "application/json; charset=UTF-8",
+        },
       }
-    };
+    );
 
-    loadVerovio();
-  }, []);
+    const json = await response.json();
+    return json.data;
 
-  const convertKrnToMei = async (krnData: string): Promise<string> => {
-    if (!verovioReady || !(window as any).verovio) {
-      throw new Error("Verovio not ready");
-    }
-
-    try {
-      const tk = new (window as any).verovio.toolkit();
-      console.log("Verovio toolkit loaded");
-
-      // Wait for toolkit to be ready
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      // Load the data with explicit format
-      const success = await tk.loadData(krnData, { format: "kern" });
-      console.log("Load data result:", success);
-
-      if (!success) {
-        const error = tk.getLog();
-        console.error("Verovio load error:", error);
-        throw new Error(`Failed to load Kern data: ${error}`);
-      }
-
-      // Wait for data to be fully loaded
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      // Verify data is loaded
-      const loadedData = tk.getHumdrum();
-      if (!loadedData) {
-        throw new Error("Data not loaded properly");
-      }
-
-      const mei = tk.getMEI();
-      console.log("MEI generated");
-      return mei;
-    } catch (err) {
-      console.error("Verovio conversion error:", err);
-      throw new Error(
-        "Failed to convert Kern to MEI: " + (err as Error).message
-      );
-    }
+    //return(data)
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,11 +65,7 @@ const NewPiece: React.FC = () => {
       console.log("File content:", fileText.substring(0, 200) + "...");
 
       if (ext === "krn") {
-        if (!verovioReady) {
-          setError("Please wait for Verovio to load");
-          return;
-        }
-        const meiData = await convertKrnToMei(fileText);
+        const meiData = await renderVerovio(fileText, {}, "mei");
         setMeiData(meiData);
       } else {
         setMeiData(fileText);
