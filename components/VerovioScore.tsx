@@ -58,27 +58,40 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
     setLoading(true);
     setError("");
 
-    try {
-      // @ts-ignore
-      const tk = new (window as any).verovio.toolkit();
-      tk.setOptions({
-        scale: 40,
-        pageHeight: 1000,
-        pageWidth: 2000,
-        adjustPageHeight: true,
-      });
-      tk.loadData(meiData, {});
-      verovioToolkitRef.current = tk;
-      setPage(1);
-      setPageCount(tk.getPageCount());
-      setSvg(tk.renderToSVG(1, {}));
-    } catch (err) {
-      setError("Failed to render score.");
-      setSvg("");
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line
+    const initializeScore = async () => {
+      try {
+        // Wait for Verovio to be fully ready
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const tk = new (window as any).verovio.toolkit();
+        tk.setOptions({
+          scale: 40,
+          pageHeight: 1000,
+          pageWidth: 2000,
+          adjustPageHeight: true,
+        });
+
+        // Wait for options to be set
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        tk.loadData(meiData, {});
+        verovioToolkitRef.current = tk;
+
+        // Wait for data to be loaded
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        setPage(1);
+        setPageCount(tk.getPageCount());
+        setSvg(tk.renderToSVG(1, {}));
+      } catch (err) {
+        setError("Failed to render score.");
+        setSvg("");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeScore();
   }, [meiData, verovioReady]);
 
   // Render the current page when page changes
@@ -94,7 +107,6 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line
   }, [page]);
 
   const goToPrevPage = () => setPage((p) => Math.max(1, p - 1));
