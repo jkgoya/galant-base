@@ -61,7 +61,7 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
     const initializeScore = async () => {
       try {
         // Wait for Verovio to be fully ready
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         const tk = new (window as any).verovio.toolkit();
         tk.setOptions({
@@ -71,14 +71,17 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
           adjustPageHeight: true,
         });
 
-        // Wait for options to be set
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Load the data
+        const success = tk.loadData(meiData, "mei");
+        console.log("Load data result:", success);
 
-        tk.loadData(meiData, {});
+        if (!success) {
+          const log = tk.getLog();
+          console.error("Verovio load error:", log);
+          throw new Error(`Failed to load MEI data: ${log}`);
+        }
+
         verovioToolkitRef.current = tk;
-
-        // Wait for data to be loaded
-        await new Promise((resolve) => setTimeout(resolve, 500));
 
         setPage(1);
         setPageCount(tk.getPageCount());
