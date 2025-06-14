@@ -131,7 +131,7 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
 
   if (error) return <p style={{ color: "red" }}>{error}</p>;
   if (loading) return <p>Loading score...</p>;
-  if (!svg) return <p>No score available.</p>;
+  if (!svg) return <p>...</p>;
 
   return (
     <div>

@@ -15,12 +15,13 @@ type MusicSource = {
   format: "krn" | "mei";
 };
 
-type MusicPiece = {
+interface MusicPiece {
+  source?: string;
   title: string;
-  composer: string;
+  composer?: string;
   url: string;
-  source: string;
-};
+  filename: string;
+}
 
 const NewPiece: React.FC = () => {
   const { data: session, status } = useSession();
@@ -75,56 +76,89 @@ const NewPiece: React.FC = () => {
         const lines = text.split("\n");
         console.log("Total lines in index file:", lines.length);
 
-        // Process each line
-        for (const line of lines) {
-          // Skip empty lines and comments
-          if (!line.trim() || line.startsWith("!")) {
-            console.log("Skipping line:", line);
-            continue;
+        if (source.indexFile.includes("corelli")) {
+          // Process each line for Corelli format
+          for (const line of lines) {
+            // Skip empty lines and comments
+            if (!line.trim() || line.startsWith("!")) {
+              console.log("Skipping line:", line);
+              continue;
+            }
+
+            // Look for lines containing .krn files
+            if (line.includes(".krn")) {
+              const parts = line.split(/\t+/);
+              console.log("Found .krn line, parts:", parts);
+
+              // Find the .krn file path
+              const krnFile = parts.find((part) => part.endsWith(".krn"));
+              if (krnFile) {
+                // Extract piece information
+                const fileName =
+                  krnFile.split("/").pop()?.replace(".krn", "") || "";
+                const pieceNumber = fileName.match(/n(\d+)/)?.[1] || "";
+
+                // Get movement info from the last field
+                const lastField = parts[4];
+                const movementInfo = lastField.includes("Y .")
+                  ? lastField.split("Y .")[1].trim()
+                  : lastField;
+                console.log("Raw movement info:", movementInfo);
+
+                // Clean up movement info
+                const cleanMovementInfo = movementInfo
+                  .replace(/<link>/g, "") // Remove <link> tags
+                  .replace(/xxx/g, "") // Remove "xxx"
+                  .replace(/\s+/g, " ") // Normalize whitespace
+                  .trim();
+
+                console.log("Cleaned movement info:", cleanMovementInfo);
+
+                // Create a descriptive title
+                const title = `${source.composer} - Op. ${fileName
+                  .split("n")[0]
+                  .replace("op", "")}, No. ${pieceNumber} ${cleanMovementInfo}`;
+
+                const piece: MusicPiece = {
+                  source: source.id,
+                  title: title,
+                  composer: source.composer,
+                  url: `${source.baseUrl}/${krnFile}`,
+                  filename: krnFile,
+                };
+
+                console.log("Created piece:", piece);
+                pieces.push(piece);
+              }
+            }
           }
+        } else {
+          // Process each line for Bach Brandenburg format
+          for (const line of lines) {
+            // Skip empty lines and special files
+            if (
+              !line.trim() ||
+              line.startsWith(".") ||
+              line.startsWith("LICENSE") ||
+              line.startsWith("readme")
+            ) {
+              continue;
+            }
 
-          // Look for lines containing .krn files
-          if (line.includes(".krn")) {
-            const parts = line.split(/\t+/);
-            console.log("Found .krn line, parts:", parts);
-
-            // Find the .krn file path
-            const krnFile = parts.find((part) => part.endsWith(".krn"));
-            if (krnFile) {
-              // Extract piece information
-              const fileName =
-                krnFile.split("/").pop()?.replace(".krn", "") || "";
-              const pieceNumber = fileName.match(/n(\d+)/)?.[1] || "";
-
-              // Get movement info from the last field
-              const lastField = parts[4];
-              const movementInfo = lastField.includes("Y .")
-                ? lastField.split("Y .")[1].trim()
-                : lastField;
-              console.log("Raw movement info:", movementInfo);
-
-              // Clean up movement info
-              const cleanMovementInfo = movementInfo
-                .replace(/<link>/g, "") // Remove <link> tags
-                .replace(/xxx/g, "") // Remove "xxx"
-                .replace(/\s+/g, " ") // Normalize whitespace
-                .trim();
-
-              console.log("Cleaned movement info:", cleanMovementInfo);
-
-              // Create a descriptive title
-              const title = `${source.composer} - Op. ${fileName
-                .split("n")[0]
-                .replace("op", "")}, No. ${pieceNumber} ${cleanMovementInfo}`;
+            const parts = line.split(/\s+/);
+            if (parts.length >= 3 && parts[0].endsWith(".krn")) {
+              const filename = parts[0];
+              const description = parts.slice(2).join(" ");
 
               const piece: MusicPiece = {
                 source: source.id,
-                title: title,
+                title: description,
                 composer: source.composer,
-                url: `${source.baseUrl}/${krnFile}`,
+                url: `${source.baseUrl}/${filename}`,
+                filename: filename,
               };
 
-              console.log("Created piece:", piece);
+              console.log("Created Bach piece:", piece);
               pieces.push(piece);
             }
           }
@@ -174,6 +208,8 @@ const NewPiece: React.FC = () => {
       );
 
       const meiData = await renderVerovio(krnContent, {}, "mei");
+      console.log("MEI data:", meiData.substring(0, 200) + "...");
+      console.log(meiData.length);
 
       // Create the piece
       console.log("Creating piece in database...");
