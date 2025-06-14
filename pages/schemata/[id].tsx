@@ -1,17 +1,23 @@
-import React from 'react';
-import { GetServerSideProps } from 'next';
-import Layout from '../../components/Layout';
-import prisma from '../../lib/prisma';
-import Router from 'next/router';
-import { useSession, getSession } from 'next-auth/react';
+import React from "react";
+import { GetServerSideProps } from "next";
+import Layout from "../../components/Layout";
+import prisma from "../../lib/prisma";
+import Router from "next/router";
+import { useSession, getSession } from "next-auth/react";
 
-const EVENT_TYPES = ['melody', 'bass', 'meter'];
+const EVENT_TYPES = ["melody", "bass", "meter"];
 
-export const getServerSideProps: GetServerSideProps = async ({ params, req }) => {
+export const getServerSideProps: GetServerSideProps = async ({
+  params,
+  req,
+}) => {
   const session = await getSession({ req });
   const gschema = await prisma.gschema.findUnique({
     where: { id: String(params?.id) },
-    include: { events: true, contributor: { select: { email: true, name: true } } },
+    include: {
+      events: true,
+      contributor: { select: { email: true, name: true } },
+    },
   });
   return { props: { gschema, sessionEmail: session?.user?.email || null } };
 };
@@ -41,16 +47,16 @@ type Props = {
 };
 
 async function deleteGschema(id: string): Promise<void> {
-  await fetch(`/api/post/gschema/${id}`, {
-    method: 'DELETE',
+  await fetch(`/api/schemata/${id}`, {
+    method: "DELETE",
   });
-  Router.push('/myschemata');
+  Router.push("/myschemata");
 }
 
 async function publishSchema(id: string) {
-  await fetch(`/api/post/gschema/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+  await fetch(`/api/schemata/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ active: true }),
   });
   Router.reload();
@@ -58,17 +64,23 @@ async function publishSchema(id: string) {
 
 const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
   const { data: session, status } = useSession();
-  if (!gschema) return <Layout><div>Schema not found.</div></Layout>;
+  if (!gschema)
+    return (
+      <Layout>
+        <div>Schema not found.</div>
+      </Layout>
+    );
   const userHasValidSession = Boolean(session);
-  const schemaBelongsToUser = sessionEmail && gschema.contributor?.email === sessionEmail;
+  const schemaBelongsToUser =
+    sessionEmail && gschema.contributor?.email === sessionEmail;
 
   // Build event table
   const eventTable: { [type: string]: string[] } = {
-    melody: Array(gschema.eventcount).fill(''),
-    bass: Array(gschema.eventcount).fill(''),
-    meter: Array(gschema.eventcount).fill(''),
+    melody: Array(gschema.eventcount).fill(""),
+    bass: Array(gschema.eventcount).fill(""),
+    meter: Array(gschema.eventcount).fill(""),
   };
-  gschema.events.forEach(ev => {
+  gschema.events.forEach((ev) => {
     if (eventTable[ev.type] && ev.index < gschema.eventcount) {
       eventTable[ev.type][ev.index] = ev.value;
     }
@@ -81,13 +93,22 @@ const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
         <p>Type: {gschema.type}</p>
         <p>Citation: {gschema.citation}</p>
         <p>Event count: {gschema.eventcount}</p>
-        <p>Status: {gschema.active ? 'Active' : 'Inactive'}</p>
-        <p>Contributor: {gschema.contributor?.name || gschema.contributor?.email || 'Unknown'}</p>
+        <p>Status: {gschema.active ? "Active" : "Inactive"}</p>
+        <p>
+          Contributor:{" "}
+          {gschema.contributor?.name || gschema.contributor?.email || "Unknown"}
+        </p>
         <h3>Events</h3>
-        <table style={{ width: '100%', marginBottom: '1rem', borderCollapse: 'collapse' }}>
+        <table
+          style={{
+            width: "100%",
+            marginBottom: "1rem",
+            borderCollapse: "collapse",
+          }}
+        >
           <thead>
             <tr>
-              <th style={{ textAlign: 'left' }}>Type</th>
+              <th style={{ textAlign: "left" }}>Type</th>
               {Array.from({ length: gschema.eventcount }, (_, idx) => (
                 <th key={idx}>Event {idx + 1}</th>
               ))}
@@ -96,7 +117,9 @@ const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
           <tbody>
             {EVENT_TYPES.map((type) => (
               <tr key={type}>
-                <td style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>{type}</td>
+                <td style={{ fontWeight: "bold", textTransform: "capitalize" }}>
+                  {type}
+                </td>
                 {Array.from({ length: gschema.eventcount }, (_, idx) => (
                   <td key={idx}>{eventTable[type][idx]}</td>
                 ))}
@@ -105,13 +128,21 @@ const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
           </tbody>
         </table>
         {userHasValidSession && schemaBelongsToUser && (
-          <div style={{ marginTop: '1rem' }}>
-            <button onClick={() => Router.push(`/schemata/edit/${gschema.id}`)} style={{ marginRight: '1rem' }}>Edit</button>
+          <div style={{ marginTop: "1rem" }}>
+            <button
+              onClick={() => Router.push(`/schemata/edit/${gschema.id}`)}
+              style={{ marginRight: "1rem" }}
+            >
+              Edit
+            </button>
             <button onClick={() => deleteGschema(gschema.id)}>Delete</button>
           </div>
         )}
         {userHasValidSession && schemaBelongsToUser && !gschema.active && (
-          <button style={{ marginTop: '1rem' }} onClick={() => publishSchema(gschema.id)}>
+          <button
+            style={{ marginTop: "1rem" }}
+            onClick={() => publishSchema(gschema.id)}
+          >
             Publish
           </button>
         )}
@@ -131,4 +162,4 @@ const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
   );
 };
 
-export default GschemaDetail; 
+export default GschemaDetail;

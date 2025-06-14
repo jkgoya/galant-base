@@ -6,7 +6,7 @@ const Home: React.FC = () => {
   return (
     <Layout>
       <div className="page">
-        <h1>Welcome to Galant</h1>
+        <h1>Welcome to Galant-Base: Community Annotation of Galant Schemata</h1>
         <div className="section">
           <h2>Schemata</h2>
           <p>Explore and contribute to our collection of musical schemata.</p>

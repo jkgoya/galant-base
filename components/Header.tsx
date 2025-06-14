@@ -156,9 +156,9 @@ const Header: React.FC = () => {
     );
     right = (
       <div className="right">
-        <p>
+        <button onClick={() => router.push("/profile")}>
           {session.user.name} ({session.user.email})
-        </p>
+        </button>
         <button onClick={() => signOut()}>
           <a>Log out</a>
         </button>
@@ -169,10 +169,17 @@ const Header: React.FC = () => {
             display: inline-block;
           }
 
-          p {
-            display: inline-block;
-            font-size: 13px;
-            padding-right: 1rem;
+          button {
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            color: var(--geist-foreground);
+          }
+
+          button:hover {
+            color: gray;
           }
 
           a + a {
@@ -181,18 +188,9 @@ const Header: React.FC = () => {
 
           .right {
             margin-left: auto;
-          }
-
-          button {
-            border: none;
-            background: none;
-            cursor: pointer;
-            font-size: 1rem;
-            padding: 0.5rem 1rem;
-          }
-
-          button:hover {
-            color: gray;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
           }
         `}</style>
       </div>

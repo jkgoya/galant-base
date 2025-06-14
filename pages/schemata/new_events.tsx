@@ -58,7 +58,7 @@ const CreateGschemaEvents: React.FC = () => {
         }))
       );
       const body = { gschemaId, events, email: session.user.email };
-      await fetch("/api/post/gschema_event", {
+      await fetch("/api/schemata/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

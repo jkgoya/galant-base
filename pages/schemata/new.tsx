@@ -15,7 +15,7 @@ const Draft_Gschema: React.FC = () => {
       const session = await getSession();
       console.log("session", session);
       const body = { name, citation, type, events, email: session.user.email };
-      const response = await fetch("/api/post/gschema", {
+      const response = await fetch("/api/schemata", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
