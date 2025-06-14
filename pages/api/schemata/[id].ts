@@ -1,47 +1,27 @@
-import { NextApiRequest, NextApiResponse } from "next";
-import { getSession } from "next-auth/react";
-import prisma from "../../../lib/prisma";
+import prisma from '../../../lib/prisma';
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  const session = await getSession({ req });
-
-  if (!session) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
-  const { id } = req.query;
-
-  if (req.method === "PUT") {
-    const { name, citation, type } = req.body;
-
-    try {
-      const result = await prisma.gschema.update({
-        where: { id: String(id) },
-        data: {
-          name,
-          citation,
-          type,
-        },
-      });
-      res.json(result);
-    } catch (error) {
-      console.error("Error updating schema:", error);
-      res.status(500).json({ error: "Error updating schema" });
-    }
-  } else if (req.method === "DELETE") {
-    try {
-      const result = await prisma.gschema.delete({
-        where: { id: String(id) },
-      });
-      res.json(result);
-    } catch (error) {
-      console.error("Error deleting schema:", error);
-      res.status(500).json({ error: "Error deleting schema" });
-    }
+export default async function handle(req, res) {
+  const id = req.query.id as string;
+  if (req.method === 'GET') {
+    const gschema = await prisma.gschema.findUnique({ where: { id }, include: { events: true, contributor: { select: { email: true, name: true } } } });
+    res.json(gschema);
+  } else if (req.method === 'PUT') {
+    const { name, citation, type, eventcount, active } = req.body;
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (citation !== undefined) data.citation = citation;
+    if (type !== undefined) data.type = type;
+    if (eventcount !== undefined) data.eventcount = eventcount;
+    if (active !== undefined) data.active = active;
+    const gschema = await prisma.gschema.update({
+      where: { id },
+      data,
+    });
+    res.json(gschema);
+  } else if (req.method === 'DELETE') {
+    await prisma.gschema.delete({ where: { id } });
+    res.json({ success: true });
   } else {
-    res.status(405).json({ error: "Method not allowed" });
+    res.status(405).json({ error: 'Method not allowed' });
   }
 } 

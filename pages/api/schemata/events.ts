@@ -1,34 +1,26 @@
-import { NextApiRequest, NextApiResponse } from "next";
-import { getSession } from "next-auth/react";
-import prisma from "../../../lib/prisma";
+import prisma from '../../../lib/prisma';
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  const session = await getSession({ req });
-
-  if (!session) {
-    return res.status(401).json({ error: "Not authenticated" });
+export default async function handle(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
-
-  if (req.method === "POST") {
-    const { gschemaId, events, email } = req.body;
-
-    try {
-      const result = await prisma.gschema_event.createMany({
-        data: events.map((event: any) => ({
-          ...event,
-          gschemaId,
-          contributorId: email,
-        })),
-      });
-      res.json(result);
-    } catch (error) {
-      console.error("Error creating schema events:", error);
-      res.status(500).json({ error: "Error creating schema events" });
-    }
-  } else {
-    res.status(405).json({ error: "Method not allowed" });
+  const { gschemaId, events } = req.body;
+  if (!gschemaId || !Array.isArray(events)) {
+    res.status(400).json({ error: 'Missing gschemaId or events' });
+    return;
+  }
+  try {
+    const createdEvents = await prisma.gschema_event.createMany({
+      data: events.map(ev => ({
+        gschemaId: gschemaId,
+        index: ev.index,
+        type: ev.type,
+        value: ev.value,
+      })),
+    });
+    res.status(201).json(createdEvents);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 } 
