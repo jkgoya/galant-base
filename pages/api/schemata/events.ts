@@ -16,7 +16,7 @@ export default async function handler(
     const { gschemaId, events, email } = req.body;
 
     try {
-      const result = await prisma.gschemaEvent.createMany({
+      const result = await prisma.gschema_event.createMany({
         data: events.map((event: any) => ({
           ...event,
           gschemaId,
