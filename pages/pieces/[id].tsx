@@ -5,6 +5,7 @@ import prisma from "../../lib/prisma";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import Router from "next/router";
 
 const VerovioScore = dynamic(() => import("../../components/VerovioScore"), {
   ssr: false,
@@ -42,6 +43,17 @@ const PieceDetail: React.FC<Props> = ({ piece }) => {
   const { data: session } = useSession();
   const isContributor = session?.user?.email === piece.contributor?.email;
 
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this piece?")) return;
+    try {
+      const res = await fetch(`/api/pieces/${piece.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete piece");
+      Router.push("/pieces");
+    } catch (err) {
+      alert("Failed to delete piece");
+    }
+  };
+
   return (
     <Layout>
       <div>
@@ -54,11 +66,25 @@ const PieceDetail: React.FC<Props> = ({ piece }) => {
         >
           <h1>{piece.title}</h1>
           {isContributor && (
-            <Link href={`/pieces/edit/${piece.id}`}>
-              <button style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
-                Edit Piece
+            <div>
+              <Link href={`/pieces/edit/${piece.id}`}>
+                <button
+                  style={{
+                    padding: "0.5rem 1rem",
+                    cursor: "pointer",
+                    marginRight: "1rem",
+                  }}
+                >
+                  Edit Piece
+                </button>
+              </Link>
+              <button
+                onClick={handleDelete}
+                style={{ padding: "0.5rem 1rem", cursor: "pointer" }}
+              >
+                Delete Piece
               </button>
-            </Link>
+            </div>
           )}
         </div>
         <p>Composer: {piece.composer}</p>
