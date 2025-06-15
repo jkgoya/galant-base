@@ -20,6 +20,11 @@ model Piece {
   meiUrl         String?
   meiData        String?
   gschemas       Gschema_Piece[]
+  format         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  contributorEmail String?
+  annotations    Annotation[]
 }
 
 model Gschema {
@@ -108,7 +113,7 @@ model Session {
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String?@unique
+  email         String    @unique
   emailVerified DateTime?
   image         String?
   isAdmin       Boolean   @default(false)
@@ -118,6 +123,7 @@ model User {
   pieces        Piece[]
   gschemas      Gschema[]
   gschema_pieces Gschema_Piece[]
+  annotations   Annotation[]
 }
 
 model VerificationToken {
@@ -140,4 +146,18 @@ model MusicSource {
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Annotation {
+  id            String   @id @default(cuid())
+  content       String
+  type          String   // "text" or "link"
+  uri           String?  // Only for link type
+  selectedMeiIds String[] // Array of selected MEI element IDs
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  piece         Piece    @relation(fields: [pieceId], references: [id])
+  pieceId       String
+  user          User     @relation(fields: [userEmail], references: [email])
+  userEmail     String
 }
