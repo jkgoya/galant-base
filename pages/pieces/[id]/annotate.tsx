@@ -168,7 +168,7 @@ export default function AnnotatePiece() {
             <div className="border rounded-lg p-4">
               <VerovioScore
                 meiData={piece.meiData}
-                onSelection={handleScoreSelection}
+                //onSelection={handleScoreSelection}
               />
             </div>
           </div>
