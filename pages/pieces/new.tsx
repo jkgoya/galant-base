@@ -224,6 +224,7 @@ const NewPiece: React.FC = () => {
           composer: piece.composer,
           meiData,
           email: session?.user?.email,
+          format: "krn",
         }),
       });
 
@@ -325,6 +326,7 @@ const NewPiece: React.FC = () => {
         composer,
         meiData,
         email: session?.user?.email,
+        format: scoreFormat,
       };
       const response = await fetch("/api/pieces", {
         method: "POST",

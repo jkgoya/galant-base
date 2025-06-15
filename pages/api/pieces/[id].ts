@@ -32,7 +32,12 @@ export default async function handle(
   }
 
   if (req.method === "GET") {
-    res.json(piece);
+    const serializedPiece = {
+      ...piece,
+      createdAt: piece.createdAt.toISOString(),
+      updatedAt: piece.updatedAt.toISOString(),
+    };
+    res.json(serializedPiece);
   } else if (req.method === "PUT") {
     const { title, composer, meiData } = req.body;
     const data: any = {};
@@ -45,7 +50,12 @@ export default async function handle(
         where: { id },
         data,
       });
-      res.status(200).json(updatedPiece);
+      const serializedPiece = {
+        ...updatedPiece,
+        createdAt: updatedPiece.createdAt.toISOString(),
+        updatedAt: updatedPiece.updatedAt.toISOString(),
+      };
+      res.status(200).json(serializedPiece);
     } catch (error) {
       console.error("Failed to update piece:", error);
       res

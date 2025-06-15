@@ -19,8 +19,8 @@ export default async function handler(
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
-  const { title, composer, meiData, email } = req.body;
-  if (!title || !composer || !meiData || !email) {
+  const { title, composer, meiData, email, format } = req.body;
+  if (!title || !composer || !meiData || !email || !format) {
     res.status(400).json({ error: "Missing required fields" });
     return;
   }
@@ -48,6 +48,7 @@ export default async function handler(
         title,
         composer,
         meiData,
+        format,
         contributor: {
           connect: { email: session.user.email },
         },
