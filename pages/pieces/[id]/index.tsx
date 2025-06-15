@@ -239,7 +239,7 @@ export default function Piece() {
           </div>
           <div className="border-t border-gray-200">
             <div className="verovio-container">
-              <VerovioScore meiData={piece.meiData} />
+              <VerovioScore meiData={piece.meiData} selectionEnabled={false} />
             </div>
           </div>
         </div>

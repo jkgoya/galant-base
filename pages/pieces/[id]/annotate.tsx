@@ -89,6 +89,14 @@ export default function AnnotatePiece() {
   }, [id, session, status, router]);
 
   const handleScoreSelection = (selectedIds: string[]) => {
+    console.log("Selection received in annotate page:", {
+      selectedIds,
+      count: selectedIds.length,
+      currentSelection: selectedMeiIds,
+      willUpdate:
+        selectedIds.length !== selectedMeiIds.length ||
+        !selectedIds.every((id, i) => id === selectedMeiIds[i]),
+    });
     setSelectedMeiIds(selectedIds);
   };
 
@@ -168,7 +176,9 @@ export default function AnnotatePiece() {
             <div className="border rounded-lg p-4">
               <VerovioScore
                 meiData={piece.meiData}
-                //onSelection={handleScoreSelection}
+                selectionEnabled={true}
+                onSelection={handleScoreSelection}
+                selectableElements={["note"]}
               />
             </div>
           </div>

@@ -43,7 +43,14 @@ export const getServerSideProps: GetServerSideProps = async ({
     };
   }
 
-  return { props: { piece } };
+  // Convert Date objects to ISO strings
+  const serializedPiece = {
+    ...piece,
+    createdAt: piece.createdAt.toISOString(),
+    updatedAt: piece.updatedAt.toISOString(),
+  };
+
+  return { props: { piece: serializedPiece } };
 };
 
 type PieceProps = {

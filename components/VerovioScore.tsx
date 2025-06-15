@@ -2,12 +2,20 @@ import React, { useEffect, useState, useRef } from "react";
 
 type Props = {
   meiData: string;
+  selectionEnabled?: boolean;
+  onSelection?: (selectedIds: string[]) => void;
+  selectableElements?: string[]; // Array of element types that can be selected (e.g. ['note', 'measure'])
 };
 
 const VEROVIO_CDN =
   "https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js";
 
-const VerovioScore: React.FC<Props> = ({ meiData }) => {
+const VerovioScore: React.FC<Props> = ({
+  meiData,
+  selectionEnabled = false,
+  onSelection,
+  selectableElements = ["note"], // Default to only allowing note selection
+}) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -16,6 +24,7 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
   const [pageCount, setPageCount] = useState(1);
   const [measureInput, setMeasureInput] = useState("");
   const verovioToolkitRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Load Verovio script if not already loaded
   useEffect(() => {
@@ -112,6 +121,77 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
     }
   }, [page]);
 
+  // Add click event listener for selection after SVG is rendered
+  useEffect(() => {
+    if (!selectionEnabled || !containerRef.current || !onSelection) return;
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as SVGElement;
+      const elementId = target.getAttribute("class");
+      const elementType = target.getAttribute("class");
+
+      console.log("Clicked element:", {
+        element: target,
+        tagName: target.tagName,
+        id: elementId,
+        type: elementType,
+        classes: target.classList,
+        parent: target.parentElement?.tagName,
+      });
+
+      // Only allow selection if the element type is in selectableElements
+      if (
+        elementId &&
+        elementType &&
+        selectableElements.includes(elementType)
+      ) {
+        // Toggle selection
+        const isSelected = target.classList.contains("selected");
+        console.log("Selection state:", {
+          wasSelected: isSelected,
+          willBeSelected: !isSelected,
+          elementType,
+        });
+
+        if (isSelected) {
+          target.classList.remove("selected");
+        } else {
+          target.classList.add("selected");
+        }
+
+        // Get all selected elements
+        const selectedElements =
+          containerRef.current?.querySelectorAll(".selected");
+        const selectedIds = Array.from(selectedElements || [])
+          .map((el) => el.getAttribute("data-id"))
+          .filter((id): id is string => id !== null);
+
+        console.log("Current selection:", {
+          totalSelected: selectedIds.length,
+          selectedIds: selectedIds,
+          elements: Array.from(selectedElements || []).map((el) => ({
+            id: el.getAttribute("data-id"),
+            type: el.getAttribute("data-type"),
+            tagName: el.tagName,
+            classes: el.className,
+          })),
+        });
+
+        onSelection(selectedIds);
+      } else if (elementId) {
+        console.log("Element not selectable:", {
+          id: elementId,
+          type: elementType,
+          allowedTypes: selectableElements,
+        });
+      }
+    };
+    containerRef.current.addEventListener("click", handleClick);
+    return () => {
+      containerRef.current?.removeEventListener("click", handleClick);
+    };
+  }, [selectionEnabled, onSelection, svg, selectableElements]);
+
   const goToPrevPage = () => setPage((p) => Math.max(1, p - 1));
   const goToNextPage = () => setPage((p) => Math.min(pageCount, p + 1));
 
@@ -164,7 +244,42 @@ const VerovioScore: React.FC<Props> = ({ meiData }) => {
           </button>
         </form>
       </div>
-      <div dangerouslySetInnerHTML={{ __html: svg }} />
+      <div
+        ref={containerRef}
+        style={{
+          cursor: selectionEnabled ? "pointer" : "default",
+          position: "relative",
+        }}
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+      <style jsx>{`
+        :global(.selected) {
+          fill: #93c5fd !important;
+          stroke: #3b82f6 !important;
+          stroke-width: 2px !important;
+        }
+        :global(svg) {
+          pointer-events: all;
+        }
+        :global(svg *) {
+          pointer-events: all;
+        }
+        :global(svg .selected) {
+          fill: #93c5fd !important;
+          stroke: #3b82f6 !important;
+          stroke-width: 2px !important;
+        }
+        :global(svg g.selected) {
+          fill: #93c5fd !important;
+          stroke: #3b82f6 !important;
+          stroke-width: 2px !important;
+        }
+        :global(svg path.selected) {
+          fill: #93c5fd !important;
+          stroke: #3b82f6 !important;
+          stroke-width: 2px !important;
+        }
+      `}</style>
     </div>
   );
 };
