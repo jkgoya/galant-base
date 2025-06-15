@@ -23,6 +23,7 @@ const VerovioScore: React.FC<Props> = ({
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
   const [measureInput, setMeasureInput] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -106,6 +107,32 @@ const VerovioScore: React.FC<Props> = ({
     initializeScore();
   }, [meiData, verovioReady]);
 
+  // Update SVG when selection changes
+  useEffect(() => {
+    if (!verovioToolkitRef.current || !svg) return;
+
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svg, "image/svg+xml");
+
+    // Remove all existing selected classes
+    svgDoc.querySelectorAll(".selected").forEach((el) => {
+      el.classList.remove("selected");
+    });
+
+    // Add selected class to elements with matching IDs
+    selectedIds.forEach((id) => {
+      const element = svgDoc.getElementById(id);
+      if (element) {
+        element.classList.add("selected");
+      }
+    });
+
+    // Convert back to string
+    const serializer = new XMLSerializer();
+    const newSvg = serializer.serializeToString(svgDoc);
+    setSvg(newSvg);
+  }, [selectedIds]);
+
   // Render the current page when page changes
   useEffect(() => {
     const tk = verovioToolkitRef.current;
@@ -126,66 +153,66 @@ const VerovioScore: React.FC<Props> = ({
     if (!selectionEnabled || !containerRef.current || !onSelection) return;
 
     const handleClick = (event: MouseEvent) => {
-      const target = event.target as SVGElement;
-      const elementId = target.getAttribute("class");
-      const elementType = target.getAttribute("class");
+      console.log("Clicked element:", event.target);
 
-      console.log("Clicked element:", {
-        element: target,
-        tagName: target.tagName,
-        id: elementId,
-        type: elementType,
-        classes: target.classList,
-        parent: target.parentElement?.tagName,
+      // Get all note elements
+      const noteElements =
+        containerRef.current?.querySelectorAll(".note.placed");
+      if (!noteElements?.length) {
+        console.log("No note elements found");
+        return;
+      }
+
+      // Get click coordinates relative to the SVG
+      const svg = containerRef.current?.querySelector("svg");
+      if (!svg) return;
+
+      const svgRect = svg.getBoundingClientRect();
+      const clickX = event.clientX - svgRect.left;
+      const clickY = event.clientY - svgRect.top;
+
+      // Find the closest note element
+      let closestNote: SVGElement | null = null;
+      let minDistance = Infinity;
+
+      noteElements.forEach((note) => {
+        const rect = note.getBoundingClientRect();
+        const noteX = rect.left - svgRect.left + rect.width / 2;
+        const noteY = rect.top - svgRect.top + rect.height / 2;
+
+        // Calculate distance between click point and note center
+        const distance = Math.sqrt(
+          Math.pow(clickX - noteX, 2) + Math.pow(clickY - noteY, 2)
+        );
+
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestNote = note as SVGElement;
+        }
       });
 
-      // Only allow selection if the element type is in selectableElements
-      if (
-        elementId &&
-        elementType &&
-        selectableElements.includes(elementType)
-      ) {
-        // Toggle selection
-        const isSelected = target.classList.contains("selected");
-        console.log("Selection state:", {
-          wasSelected: isSelected,
-          willBeSelected: !isSelected,
-          elementType,
-        });
-
-        if (isSelected) {
-          target.classList.remove("selected");
-        } else {
-          target.classList.add("selected");
-        }
-
-        // Get all selected elements
-        const selectedElements =
-          containerRef.current?.querySelectorAll(".selected");
-        const selectedIds = Array.from(selectedElements || [])
-          .map((el) => el.getAttribute("data-id"))
-          .filter((id): id is string => id !== null);
-
-        console.log("Current selection:", {
-          totalSelected: selectedIds.length,
-          selectedIds: selectedIds,
-          elements: Array.from(selectedElements || []).map((el) => ({
-            id: el.getAttribute("data-id"),
-            type: el.getAttribute("data-type"),
-            tagName: el.tagName,
-            classes: el.className,
-          })),
-        });
-
-        onSelection(selectedIds);
-      } else if (elementId) {
-        console.log("Element not selectable:", {
-          id: elementId,
-          type: elementType,
-          allowedTypes: selectableElements,
-        });
+      if (!closestNote) {
+        console.log("No closest note found");
+        return;
       }
+
+      // Get the element ID and verify it starts with "note"
+      const elementId = closestNote.getAttribute("id");
+      if (!elementId?.startsWith("note")) {
+        console.log("Element ID does not start with 'note':", elementId);
+        return;
+      }
+
+      // Toggle selection in our state
+      setSelectedIds((prev) => {
+        const newSelection = prev.includes(elementId)
+          ? prev.filter((id) => id !== elementId)
+          : [...prev, elementId];
+        onSelection(newSelection);
+        return newSelection;
+      });
     };
+
     containerRef.current.addEventListener("click", handleClick);
     return () => {
       containerRef.current?.removeEventListener("click", handleClick);
@@ -253,28 +280,18 @@ const VerovioScore: React.FC<Props> = ({
         dangerouslySetInnerHTML={{ __html: svg }}
       />
       <style jsx>{`
-        :global(.selected) {
-          fill: #93c5fd !important;
-          stroke: #3b82f6 !important;
-          stroke-width: 2px !important;
-        }
         :global(svg) {
           pointer-events: all;
         }
         :global(svg *) {
           pointer-events: all;
         }
-        :global(svg .selected) {
+        :global(.note.placed.selected) {
           fill: #93c5fd !important;
           stroke: #3b82f6 !important;
           stroke-width: 2px !important;
         }
-        :global(svg g.selected) {
-          fill: #93c5fd !important;
-          stroke: #3b82f6 !important;
-          stroke-width: 2px !important;
-        }
-        :global(svg path.selected) {
+        :global(.note.placed.selected *) {
           fill: #93c5fd !important;
           stroke: #3b82f6 !important;
           stroke-width: 2px !important;
