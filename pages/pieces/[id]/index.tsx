@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
-import Layout from "../../components/Layout";
-import prisma from "../../lib/prisma";
+import Layout from "../../../components/Layout";
+import prisma from "../../../lib/prisma";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-const VerovioScore = dynamic(() => import("../../components/VerovioScore"), {
+const VerovioScore = dynamic(() => import("../../../components/VerovioScore"), {
   ssr: false,
 });
 
