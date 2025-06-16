@@ -59,6 +59,8 @@ model Gschema_Piece {
   gschema        Gschema?@relation(fields:[gschemaId], references:[id])
   gschemaId      String?
   annotations    Gschema_event_Piece[]
+  measurestart   Int?
+  measureend     Int?       
 }
 
 model Gschema_event_Piece {

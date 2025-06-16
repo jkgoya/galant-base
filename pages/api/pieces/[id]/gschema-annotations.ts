@@ -16,7 +16,7 @@ export default async function handler(
   const { id } = req.query;
 
   if (req.method === "POST") {
-    const { gschemaId, annotations } = req.body;
+    const { gschemaId, annotations, measurestart, measureend } = req.body;
 
     if (!gschemaId || !annotations?.length) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -41,6 +41,8 @@ export default async function handler(
               email: session.user.email,
             },
           },
+          measurestart: measurestart || undefined, // Only include if measurestart exists
+          measureend: measureend || undefined,
         },
       });
 

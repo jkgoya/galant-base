@@ -38,9 +38,9 @@ interface Schema {
 
 type TemporaryAnnotation = {
   id: string; // Unique ID for the temporary annotation
-  eventType: string;
-  eventValue: string;
+  gschema_event_id: string;
   noteId: string;
+  measure: number;
 };
 
 export default function AnnotatePiece() {
@@ -50,13 +50,12 @@ export default function AnnotatePiece() {
   const [piece, setPiece] = useState<PieceProps | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMeiIds, setSelectedMeiIds] = useState<string[]>([]);
+  //const [selectedMeiIds, setSelectedMeiIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
   const [currentDragEvent, setCurrentDragEvent] = useState<{
-    type: string;
-    value: string;
+    gschema_event_id: string;
   } | null>(null);
   const [temporaryAnnotations, setTemporaryAnnotations] = useState<
     TemporaryAnnotation[]
@@ -104,36 +103,25 @@ export default function AnnotatePiece() {
     }
   }, [id, session, status, router]);
 
-  const handleScoreSelection = (selectedIds: string[]) => {
-    console.log("Selection received in annotate page:", {
-      selectedIds,
-      count: selectedIds.length,
-      currentSelection: selectedMeiIds,
-      willUpdate:
-        selectedIds.length !== selectedMeiIds.length ||
-        !selectedIds.every((id, i) => id === selectedMeiIds[i]),
-    });
-    setSelectedMeiIds(selectedIds);
-  };
-
-  const handleDragStart = (e: React.DragEvent, type: string, value: string) => {
-    const dragData = { type, value };
+  const handleDragStart = (e: React.DragEvent, gschema_event_id: string) => {
+    const dragData = { gschema_event_id };
     setCurrentDragEvent(dragData);
     console.log("Drag start:", dragData);
   };
 
-  const handleDrop = (selectedIds: string[]) => {
-    if (!selectedIds.length || !currentDragEvent) {
+  const handleDrop = (selectedId: string, measure: number) => {
+    if (!selectedId || !currentDragEvent) {
       //setError("Please select a note in the score first");
       return;
     }
+    console.log("Drop:", selectedId, measure);
 
     // Add to temporary annotations
     const newAnnotation: TemporaryAnnotation = {
       id: Math.random().toString(36).substr(2, 9), // Generate a unique ID
-      eventType: currentDragEvent.type,
-      eventValue: currentDragEvent.value,
-      noteId: selectedIds[0],
+      gschema_event_id: currentDragEvent.gschema_event_id,
+      noteId: selectedId,
+      measure: measure,
     };
 
     setTemporaryAnnotations((prev) => [...prev, newAnnotation]);
@@ -152,21 +140,17 @@ export default function AnnotatePiece() {
 
     setIsSubmitting(true);
     try {
+      let measurestart = 1;
+      let measureend = 1;
       // Get the Gschema_event IDs for each annotation
       const annotations = await Promise.all(
         temporaryAnnotations.map(async (annotation) => {
-          const event = selectedSchema.events.find(
-            (e) =>
-              e.type === annotation.eventType &&
-              e.value === annotation.eventValue
-          );
-          if (!event) {
-            throw new Error(
-              `Event not found for ${annotation.eventType}: ${annotation.eventValue}`
-            );
-          }
+          const event = annotation.gschema_event_id;
+          measurestart = Math.min(measurestart, annotation.measure);
+          measureend = Math.max(measureend, annotation.measure);
+
           return {
-            eventId: event.id,
+            eventId: event,
             noteId: annotation.noteId,
           };
         })
@@ -180,6 +164,8 @@ export default function AnnotatePiece() {
         body: JSON.stringify({
           gschemaId: selectedSchema.id,
           annotations,
+          measurestart: measurestart,
+          measureend: measureend,
         }),
       });
 
@@ -236,11 +222,21 @@ export default function AnnotatePiece() {
         roman: Array(selectedSchema.eventcount).fill(""),
       }
     : null;
+  const eventTableid = selectedSchema
+    ? {
+        melody: Array(selectedSchema.eventcount).fill(""),
+        bass: Array(selectedSchema.eventcount).fill(""),
+        meter: Array(selectedSchema.eventcount).fill(""),
+        figures: Array(selectedSchema.eventcount).fill(""),
+        roman: Array(selectedSchema.eventcount).fill(""),
+      }
+    : null;
 
   if (selectedSchema && eventTable) {
     selectedSchema.events.forEach((ev) => {
       if (eventTable[ev.type] && ev.index < selectedSchema.eventcount) {
         eventTable[ev.type][ev.index] = ev.value;
+        eventTableid[ev.type][ev.index] = ev.id;
       }
     });
   }
@@ -260,7 +256,6 @@ export default function AnnotatePiece() {
                 <VerovioScore
                   meiData={piece.meiData}
                   selectionEnabled={true}
-                  onSelection={handleScoreSelection}
                   onDrop={handleDrop}
                   selectableElements={["note"]}
                 />
@@ -278,6 +273,8 @@ export default function AnnotatePiece() {
                   onChange={(e) => {
                     const schema = schemas.find((s) => s.id === e.target.value);
                     setSelectedSchema(schema || null);
+                    // Clear temporary annotations when schema changes
+                    setTemporaryAnnotations([]);
                   }}
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 >
@@ -343,13 +340,12 @@ export default function AnnotatePiece() {
                                   {type === "bass" || type === "melody" ? (
                                     <div
                                       draggable
-                                      onDragStart={(e) =>
+                                      onDragStart={(e) => {
                                         handleDragStart(
                                           e,
-                                          type,
-                                          eventTable[type][idx]
-                                        )
-                                      }
+                                          eventTableid[type][idx]
+                                        );
+                                      }}
                                       style={{
                                         width: "2rem",
                                         height: "2rem",
@@ -409,9 +405,9 @@ export default function AnnotatePiece() {
                     >
                       <div>
                         <span className="font-medium">
-                          {annotation.eventType}:
+                          {annotation.gschema_event_id}
                         </span>{" "}
-                        {annotation.eventValue} on note {annotation.noteId}
+                        {annotation.noteId + " " + annotation.measure}
                       </div>
                       <button
                         onClick={() => removeTemporaryAnnotation(annotation.id)}

@@ -7,19 +7,13 @@ type Props = {
   selectionEnabled?: boolean;
   onSelection?: (selectedIds: string[]) => void;
   selectableElements?: string[]; // Array of element types that can be selected (e.g. ['note', 'measure'])
-  onDrop?: (selectedIds: string[]) => void;
+  onDrop?: (selectedId: string, measure: number) => void;
 };
 
 const VEROVIO_CDN =
   "https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js";
 
-const VerovioScore: React.FC<Props> = ({
-  meiData,
-  selectionEnabled = false,
-  onSelection,
-  selectableElements = ["note"], // Default to only allowing note selection
-  onDrop,
-}) => {
+const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -208,6 +202,16 @@ const VerovioScore: React.FC<Props> = ({
     const debouncedDragOver = debounce(handleDragOver, 10);
 
     const handleDragLeave = (event: DragEvent) => {
+      let measure = 1;
+      // get the measure of the note
+      const note = containerRef.current?.querySelector(`#${dragTargetId}`);
+      if (note) {
+        // find the closest parent element of type measure and return the measure id
+        const measureID = note.closest(".measure").getAttribute("id");
+        //const measureID = "measure-L52";
+        const tk = verovioToolkitRef.current;
+        measure = parseInt(tk.getElementAttr(measureID, "n").n);
+      }
       // Only handle drag leave if we're leaving the container
       if (
         event.relatedTarget &&
@@ -222,7 +226,8 @@ const VerovioScore: React.FC<Props> = ({
       debouncedDragOver.cancel();
 
       try {
-        onDrop([dragTargetId]);
+        console.log("Drag leave:", dragTargetId, measure);
+        onDrop(dragTargetId, measure);
       } catch (err) {
         console.error("Error handling drag leave:", err);
       }
