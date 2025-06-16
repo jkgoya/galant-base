@@ -7,10 +7,7 @@ type Props = {
   selectionEnabled?: boolean;
   onSelection?: (selectedIds: string[]) => void;
   selectableElements?: string[]; // Array of element types that can be selected (e.g. ['note', 'measure'])
-  onDrop?: (
-    data: { type: string; value: string },
-    selectedIds: string[]
-  ) => void;
+  onDrop?: (selectedIds: string[]) => void;
 };
 
 const VEROVIO_CDN =
@@ -201,7 +198,6 @@ const VerovioScore: React.FC<Props> = ({
       if (closestNote) {
         const elementId = closestNote.getAttribute("id");
         if (elementId?.startsWith("note")) {
-          console.log("Drag over - Setting drag target:", elementId);
           setDragTargetId(elementId);
           setSelectedIds([elementId]);
         }
@@ -226,21 +222,11 @@ const VerovioScore: React.FC<Props> = ({
       debouncedDragOver.cancel();
 
       try {
-        const data = JSON.parse(
-          event.dataTransfer?.getData("application/json") || "{}"
-        );
-        console.log("Drag leave - Creating annotation with:", {
-          data,
-          dragTargetId,
-        });
-        if (data && dragTargetId) {
-          onDrop(data, [dragTargetId]);
-        }
+        onDrop([dragTargetId]);
       } catch (err) {
         console.error("Error handling drag leave:", err);
       }
 
-      console.log("Drag leave - Clearing drag target");
       setDragTargetId(null);
     };
 
@@ -250,7 +236,6 @@ const VerovioScore: React.FC<Props> = ({
     };
 
     const container = containerRef.current;
-    console.log("Setting up drag and drop event listeners");
 
     // Add event listeners to the container
     container.addEventListener("dragover", debouncedDragOver);
@@ -260,14 +245,12 @@ const VerovioScore: React.FC<Props> = ({
     // Also add event listeners to the SVG element
     const svg = container.querySelector("svg");
     if (svg) {
-      console.log("Setting up SVG event listeners");
       svg.addEventListener("dragover", debouncedDragOver);
       svg.addEventListener("dragleave", handleDragLeave);
       svg.addEventListener("drop", handleDrop);
     }
 
     return () => {
-      console.log("Cleaning up drag and drop event listeners");
       container.removeEventListener("dragover", debouncedDragOver);
       container.removeEventListener("dragleave", handleDragLeave);
       container.removeEventListener("drop", handleDrop);

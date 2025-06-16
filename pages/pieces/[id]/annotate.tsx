@@ -63,6 +63,10 @@ export default function AnnotatePiece() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
+  const [currentDragEvent, setCurrentDragEvent] = useState<{
+    type: string;
+    value: string;
+  } | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -172,23 +176,22 @@ export default function AnnotatePiece() {
   };
 
   const handleDragStart = (e: React.DragEvent, type: string, value: string) => {
-    e.dataTransfer.setData("application/json", JSON.stringify({ type, value }));
+    const dragData = { type, value };
+    setCurrentDragEvent(dragData);
+    console.log("Drag start:", dragData);
   };
 
-  const handleDrop = async (
-    data: { type: string; value: string },
-    selectedIds: string[]
-  ) => {
+  const handleDrop = async (selectedIds: string[]) => {
     if (!selectedIds.length) {
       setError("Please select a note in the score first");
       return;
     }
-    console.log("Drop event", data, selectedIds);
+    console.log("Drop event", selectedIds);
 
     setIsSubmitting(true);
     try {
       const requestBody = {
-        content: `${data.type}: ${data.value}`,
+        content: `${currentDragEvent.type}: ${currentDragEvent.value}`,
         type: "text",
         selectedMeiIds: selectedIds,
         uri: null,
@@ -228,10 +231,6 @@ export default function AnnotatePiece() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
   };
 
   if (status === "loading" || loading) {
@@ -419,89 +418,6 @@ export default function AnnotatePiece() {
           </div>
 
           <div className="space-y-8">
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Add Annotation</h2>
-              <form onSubmit={handleSubmitAnnotation} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Annotation Type
-                  </label>
-                  <select
-                    value={annotationType}
-                    onChange={(e) =>
-                      setAnnotationType(e.target.value as "text" | "link")
-                    }
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  >
-                    <option value="text">Text Comment</option>
-                    <option value="link">URI Link</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Content
-                  </label>
-                  <textarea
-                    value={annotationContent}
-                    onChange={(e) => setAnnotationContent(e.target.value)}
-                    rows={4}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    placeholder="Enter your annotation..."
-                  />
-                </div>
-
-                {annotationType === "link" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      URI
-                    </label>
-                    <input
-                      type="url"
-                      value={annotationUri}
-                      onChange={(e) => setAnnotationUri(e.target.value)}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      placeholder="https://..."
-                    />
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !selectedMeiIds.length}
-                  className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <svg
-                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Adding...
-                    </>
-                  ) : (
-                    "Add Annotation"
-                  )}
-                </button>
-              </form>
-            </div>
-
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-xl font-semibold mb-4">Annotations</h2>
               <div className="space-y-4">
