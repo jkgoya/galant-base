@@ -5,7 +5,7 @@ import prisma from "../../lib/prisma";
 import Router from "next/router";
 import { useSession, getSession } from "next-auth/react";
 
-const EVENT_TYPES = ["melody", "bass", "meter"];
+const EVENT_TYPES = ["melody", "bass", "meter", "figures", "roman"];
 
 export const getServerSideProps: GetServerSideProps = async ({
   params,
@@ -81,6 +81,8 @@ const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
     melody: Array(gschema.eventcount).fill(""),
     bass: Array(gschema.eventcount).fill(""),
     meter: Array(gschema.eventcount).fill(""),
+    figures: Array(gschema.eventcount).fill(""),
+    roman: Array(gschema.eventcount).fill(""),
   };
   gschema.events.forEach((ev) => {
     if (eventTable[ev.type] && ev.index < gschema.eventcount) {
@@ -101,34 +103,71 @@ const GschemaDetail: React.FC<Props> = ({ gschema, sessionEmail }) => {
           {gschema.contributor?.name || gschema.contributor?.email || "Unknown"}
         </p>
         <h3>Events</h3>
-        <table
-          style={{
-            width: "100%",
-            marginBottom: "1rem",
-            borderCollapse: "collapse",
-          }}
-        >
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left" }}>Type</th>
-              {Array.from({ length: gschema.eventcount }, (_, idx) => (
-                <th key={idx}>Event {idx + 1}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {EVENT_TYPES.map((type) => (
-              <tr key={type}>
-                <td style={{ fontWeight: "bold", textTransform: "capitalize" }}>
-                  {type}
-                </td>
+        <div style={{ display: "flex", justifyContent: "flex-start" }}>
+          <table
+            style={{
+              marginBottom: "1rem",
+              borderCollapse: "collapse",
+              fontSize: "0.9rem",
+            }}
+          >
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "0.25rem" }}>Type</th>
                 {Array.from({ length: gschema.eventcount }, (_, idx) => (
-                  <td key={idx}>{eventTable[type][idx]}</td>
+                  <th key={idx} style={{ padding: "0.25rem", width: "2.5rem" }}>
+                    Event {idx + 1}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {EVENT_TYPES.map((type) => (
+                <tr key={type}>
+                  <td
+                    style={{
+                      fontWeight: "bold",
+                      textTransform: "capitalize",
+                      padding: "0.25rem",
+                    }}
+                  >
+                    {type}
+                  </td>
+                  {Array.from({ length: gschema.eventcount }, (_, idx) => (
+                    <td
+                      key={idx}
+                      style={{ padding: "0.25rem", textAlign: "center" }}
+                    >
+                      {type === "bass" || type === "melody" ? (
+                        <div
+                          style={{
+                            width: "2rem",
+                            height: "2rem",
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            margin: "0 auto",
+                            backgroundColor:
+                              type === "bass" ? "white" : "black",
+                            color: type === "bass" ? "black" : "white",
+                            border: "1px solid #ccc",
+                            fontSize: "0.9rem",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {eventTable[type][idx]}
+                        </div>
+                      ) : (
+                        eventTable[type][idx]
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {userHasValidSession && schemaBelongsToUser && (
           <div style={{ marginTop: "1rem" }}>
             <button

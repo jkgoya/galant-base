@@ -32,6 +32,22 @@ interface PieceProps {
   };
 }
 
+interface GschemaEvent {
+  id: string;
+  gschemaId: string | null;
+  index: number;
+  type: string;
+  value: string;
+}
+
+interface Schema {
+  id: string;
+  name: string;
+  type: string;
+  eventcount: number;
+  events: GschemaEvent[];
+}
+
 export default function AnnotatePiece() {
   const router = useRouter();
   const { id } = router.query;
@@ -45,6 +61,8 @@ export default function AnnotatePiece() {
   const [annotationType, setAnnotationType] = useState<"text" | "link">("text");
   const [annotationUri, setAnnotationUri] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [schemas, setSchemas] = useState<Schema[]>([]);
+  const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -82,9 +100,23 @@ export default function AnnotatePiece() {
       }
     };
 
+    const fetchSchemas = async () => {
+      try {
+        const response = await fetch("/api/schemata");
+        if (!response.ok) {
+          throw new Error("Failed to fetch schemas");
+        }
+        const data = await response.json();
+        setSchemas(data);
+      } catch (err) {
+        console.error("Failed to fetch schemas:", err);
+      }
+    };
+
     if (id) {
       fetchPiece();
       fetchAnnotations();
+      fetchSchemas();
     }
   }, [id, session, status, router]);
 
@@ -139,6 +171,69 @@ export default function AnnotatePiece() {
     }
   };
 
+  const handleDragStart = (e: React.DragEvent, type: string, value: string) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({ type, value }));
+  };
+
+  const handleDrop = async (
+    data: { type: string; value: string },
+    selectedIds: string[]
+  ) => {
+    if (!selectedIds.length) {
+      setError("Please select a note in the score first");
+      return;
+    }
+    console.log("Drop event", data, selectedIds);
+
+    setIsSubmitting(true);
+    try {
+      const requestBody = {
+        content: `${data.type}: ${data.value}`,
+        type: "text",
+        selectedMeiIds: selectedIds,
+        uri: null,
+      };
+      console.log("Sending request to create annotation:", requestBody);
+
+      const response = await fetch(`/api/pieces/${id}/annotations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Failed to create annotation:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        throw new Error(
+          `Failed to create annotation: ${
+            errorData.error || response.statusText
+          }`
+        );
+      }
+
+      const newAnnotation = await response.json();
+      console.log("Successfully created annotation:", newAnnotation);
+      setAnnotations([...annotations, newAnnotation]);
+      setSelectedMeiIds([]);
+      setError(null);
+    } catch (err) {
+      console.error("Error in handleDrop:", err);
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -163,6 +258,25 @@ export default function AnnotatePiece() {
     );
   }
 
+  // Build event table for selected schema
+  const eventTable = selectedSchema
+    ? {
+        melody: Array(selectedSchema.eventcount).fill(""),
+        bass: Array(selectedSchema.eventcount).fill(""),
+        meter: Array(selectedSchema.eventcount).fill(""),
+        figures: Array(selectedSchema.eventcount).fill(""),
+        roman: Array(selectedSchema.eventcount).fill(""),
+      }
+    : null;
+
+  if (selectedSchema && eventTable) {
+    selectedSchema.events.forEach((ev) => {
+      if (eventTable[ev.type] && ev.index < selectedSchema.eventcount) {
+        eventTable[ev.type][ev.index] = ev.value;
+      }
+    });
+  }
+
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
@@ -171,15 +285,136 @@ export default function AnnotatePiece() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Score</h2>
-            <div className="border rounded-lg p-4">
-              <VerovioScore
-                meiData={piece.meiData}
-                selectionEnabled={true}
-                onSelection={handleScoreSelection}
-                selectableElements={["note"]}
-              />
+          <div className="space-y-8">
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4">Score</h2>
+              <div className="border rounded-lg p-4">
+                <VerovioScore
+                  meiData={piece.meiData}
+                  selectionEnabled={true}
+                  onSelection={handleScoreSelection}
+                  onDrop={handleDrop}
+                  selectableElements={["note"]}
+                />
+              </div>
+            </div>
+
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4">Schema</h2>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Schema
+                </label>
+                <select
+                  value={selectedSchema?.id || ""}
+                  onChange={(e) => {
+                    const schema = schemas.find((s) => s.id === e.target.value);
+                    setSelectedSchema(schema || null);
+                  }}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  <option value="">Select a schema...</option>
+                  {schemas.map((schema) => (
+                    <option key={schema.id} value={schema.id}>
+                      {schema.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedSchema && eventTable && (
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <table
+                    style={{
+                      marginBottom: "1rem",
+                      borderCollapse: "collapse",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "0.25rem" }}>
+                          Type
+                        </th>
+                        {Array.from(
+                          { length: selectedSchema.eventcount },
+                          (_, idx) => (
+                            <th
+                              key={idx}
+                              style={{ padding: "0.25rem", width: "2.5rem" }}
+                            >
+                              Event {idx + 1}
+                            </th>
+                          )
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {["melody", "bass", "meter", "figures", "roman"].map(
+                        (type) => (
+                          <tr key={type}>
+                            <td
+                              style={{
+                                fontWeight: "bold",
+                                textTransform: "capitalize",
+                                padding: "0.25rem",
+                              }}
+                            >
+                              {type}
+                            </td>
+                            {Array.from(
+                              { length: selectedSchema.eventcount },
+                              (_, idx) => (
+                                <td
+                                  key={idx}
+                                  style={{
+                                    padding: "0.25rem",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  {type === "bass" || type === "melody" ? (
+                                    <div
+                                      draggable
+                                      onDragStart={(e) =>
+                                        handleDragStart(
+                                          e,
+                                          type,
+                                          eventTable[type][idx]
+                                        )
+                                      }
+                                      style={{
+                                        width: "2rem",
+                                        height: "2rem",
+                                        borderRadius: "50%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        margin: "0 auto",
+                                        backgroundColor:
+                                          type === "bass" ? "white" : "black",
+                                        color:
+                                          type === "bass" ? "black" : "white",
+                                        border: "1px solid #ccc",
+                                        fontSize: "0.9rem",
+                                        fontWeight: "bold",
+                                        cursor: "grab",
+                                      }}
+                                    >
+                                      {eventTable[type][idx]}
+                                    </div>
+                                  ) : (
+                                    eventTable[type][idx]
+                                  )}
+                                </td>
+                              )
+                            )}
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
 

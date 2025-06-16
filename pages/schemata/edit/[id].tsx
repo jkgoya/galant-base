@@ -4,7 +4,7 @@ import Layout from "../../../components/Layout";
 import prisma from "../../../lib/prisma";
 import Router from "next/router";
 
-const EVENT_TYPES = ["meter", "melody", "bass", "figures", "roman"];
+const EVENT_TYPES = ["melody", "bass", "meter", "figures", "roman"];
 
 export const getServerSideProps: GetServerSideProps = async ({
   params,
@@ -52,6 +52,8 @@ const EditGschema: React.FC<Props> = ({ gschema }) => {
       melody: Array(gschema.eventcount).fill(""),
       bass: Array(gschema.eventcount).fill(""),
       meter: Array(gschema.eventcount).fill(""),
+      figures: Array(gschema.eventcount).fill(""),
+      roman: Array(gschema.eventcount).fill(""),
     };
     gschema.events.forEach((ev) => {
       if (initial[ev.type] && ev.index < gschema.eventcount) {

@@ -1,10 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/router";
+import { debounce } from "lodash";
 
 type Props = {
   meiData: string;
   selectionEnabled?: boolean;
   onSelection?: (selectedIds: string[]) => void;
   selectableElements?: string[]; // Array of element types that can be selected (e.g. ['note', 'measure'])
+  onDrop?: (
+    data: { type: string; value: string },
+    selectedIds: string[]
+  ) => void;
 };
 
 const VEROVIO_CDN =
@@ -15,6 +21,7 @@ const VerovioScore: React.FC<Props> = ({
   selectionEnabled = false,
   onSelection,
   selectableElements = ["note"], // Default to only allowing note selection
+  onDrop,
 }) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -24,6 +31,7 @@ const VerovioScore: React.FC<Props> = ({
   const [pageCount, setPageCount] = useState(1);
   const [measureInput, setMeasureInput] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -120,7 +128,9 @@ const VerovioScore: React.FC<Props> = ({
     });
 
     // Add selected class to elements with matching IDs
-    selectedIds.forEach((id) => {
+    const idsToHighlight = dragTargetId ? [dragTargetId] : selectedIds;
+    //console.log("Highlighting IDs:", idsToHighlight);
+    idsToHighlight.forEach((id) => {
       const element = svgDoc.getElementById(id);
       if (element) {
         element.classList.add("selected");
@@ -131,7 +141,7 @@ const VerovioScore: React.FC<Props> = ({
     const serializer = new XMLSerializer();
     const newSvg = serializer.serializeToString(svgDoc);
     setSvg(newSvg);
-  }, [selectedIds]);
+  }, [selectedIds, dragTargetId, svg]);
 
   // Render the current page when page changes
   useEffect(() => {
@@ -148,30 +158,28 @@ const VerovioScore: React.FC<Props> = ({
     }
   }, [page]);
 
-  // Add click event listener for selection after SVG is rendered
+  // Add drag tracking effect
   useEffect(() => {
-    if (!selectionEnabled || !containerRef.current || !onSelection) return;
+    if (!containerRef.current || !onDrop) return;
 
-    const handleClick = (event: MouseEvent) => {
-      console.log("Clicked element:", event.target);
+    const handleDragOver = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!containerRef.current) return;
 
-      // Get all note elements
-      const noteElements =
-        containerRef.current?.querySelectorAll(".note.placed");
-      if (!noteElements?.length) {
-        console.log("No note elements found");
-        return;
-      }
-
-      // Get click coordinates relative to the SVG
-      const svg = containerRef.current?.querySelector("svg");
+      const svg = containerRef.current.querySelector("svg");
       if (!svg) return;
 
       const svgRect = svg.getBoundingClientRect();
-      const clickX = event.clientX - svgRect.left;
-      const clickY = event.clientY - svgRect.top;
+      const mouseX = event.clientX - svgRect.left;
+      const mouseY = event.clientY - svgRect.top;
 
-      // Find the closest note element
+      // Find all note elements
+      const noteElements =
+        containerRef.current.querySelectorAll(".note.placed");
+      if (!noteElements.length) return;
+
+      // Find the closest note
       let closestNote: SVGElement | null = null;
       let minDistance = Infinity;
 
@@ -180,9 +188,8 @@ const VerovioScore: React.FC<Props> = ({
         const noteX = rect.left - svgRect.left + rect.width / 2;
         const noteY = rect.top - svgRect.top + rect.height / 2;
 
-        // Calculate distance between click point and note center
         const distance = Math.sqrt(
-          Math.pow(clickX - noteX, 2) + Math.pow(clickY - noteY, 2)
+          Math.pow(mouseX - noteX, 2) + Math.pow(mouseY - noteY, 2)
         );
 
         if (distance < minDistance) {
@@ -191,33 +198,89 @@ const VerovioScore: React.FC<Props> = ({
         }
       });
 
-      if (!closestNote) {
-        console.log("No closest note found");
-        return;
+      if (closestNote) {
+        const elementId = closestNote.getAttribute("id");
+        if (elementId?.startsWith("note")) {
+          console.log("Drag over - Setting drag target:", elementId);
+          setDragTargetId(elementId);
+          setSelectedIds([elementId]);
+        }
       }
-
-      // Get the element ID and verify it starts with "note"
-      const elementId = closestNote.getAttribute("id");
-      if (!elementId?.startsWith("note")) {
-        console.log("Element ID does not start with 'note':", elementId);
-        return;
-      }
-
-      // Toggle selection in our state
-      setSelectedIds((prev) => {
-        const newSelection = prev.includes(elementId)
-          ? prev.filter((id) => id !== elementId)
-          : [...prev, elementId];
-        onSelection(newSelection);
-        return newSelection;
-      });
     };
 
-    containerRef.current.addEventListener("click", handleClick);
+    // Debounce the drag over handler
+    const debouncedDragOver = debounce(handleDragOver, 10);
+
+    const handleDragLeave = (event: DragEvent) => {
+      // Only handle drag leave if we're leaving the container
+      if (
+        event.relatedTarget &&
+        containerRef.current?.contains(event.relatedTarget as Node)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Cancel any pending drag over updates
+      debouncedDragOver.cancel();
+
+      try {
+        const data = JSON.parse(
+          event.dataTransfer?.getData("application/json") || "{}"
+        );
+        console.log("Drag leave - Creating annotation with:", {
+          data,
+          dragTargetId,
+        });
+        if (data && dragTargetId) {
+          onDrop(data, [dragTargetId]);
+        }
+      } catch (err) {
+        console.error("Error handling drag leave:", err);
+      }
+
+      console.log("Drag leave - Clearing drag target");
+      setDragTargetId(null);
+    };
+
+    const handleDrop = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const container = containerRef.current;
+    console.log("Setting up drag and drop event listeners");
+
+    // Add event listeners to the container
+    container.addEventListener("dragover", debouncedDragOver);
+    container.addEventListener("dragleave", handleDragLeave);
+    container.addEventListener("drop", handleDrop);
+
+    // Also add event listeners to the SVG element
+    const svg = container.querySelector("svg");
+    if (svg) {
+      console.log("Setting up SVG event listeners");
+      svg.addEventListener("dragover", debouncedDragOver);
+      svg.addEventListener("dragleave", handleDragLeave);
+      svg.addEventListener("drop", handleDrop);
+    }
+
     return () => {
-      containerRef.current?.removeEventListener("click", handleClick);
+      console.log("Cleaning up drag and drop event listeners");
+      container.removeEventListener("dragover", debouncedDragOver);
+      container.removeEventListener("dragleave", handleDragLeave);
+      container.removeEventListener("drop", handleDrop);
+
+      if (svg) {
+        svg.removeEventListener("dragover", debouncedDragOver);
+        svg.removeEventListener("dragleave", handleDragLeave);
+        svg.removeEventListener("drop", handleDrop);
+      }
+      // Cancel any pending debounced calls
+      debouncedDragOver.cancel();
     };
-  }, [selectionEnabled, onSelection, svg, selectableElements]);
+  }, [onDrop, dragTargetId]);
 
   const goToPrevPage = () => setPage((p) => Math.max(1, p - 1));
   const goToNextPage = () => setPage((p) => Math.min(pageCount, p + 1));
@@ -274,7 +337,6 @@ const VerovioScore: React.FC<Props> = ({
       <div
         ref={containerRef}
         style={{
-          cursor: selectionEnabled ? "pointer" : "default",
           position: "relative",
         }}
         dangerouslySetInnerHTML={{ __html: svg }}
@@ -287,14 +349,10 @@ const VerovioScore: React.FC<Props> = ({
           pointer-events: all;
         }
         :global(.note.placed.selected) {
-          fill: #93c5fd !important;
-          stroke: #3b82f6 !important;
-          stroke-width: 2px !important;
+          filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
         }
         :global(.note.placed.selected *) {
-          fill: #93c5fd !important;
-          stroke: #3b82f6 !important;
-          stroke-width: 2px !important;
+          filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
         }
       `}</style>
     </div>
