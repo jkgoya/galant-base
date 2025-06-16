@@ -48,6 +48,13 @@ interface Schema {
   events: GschemaEvent[];
 }
 
+type TemporaryAnnotation = {
+  id: string; // Unique ID for the temporary annotation
+  eventType: string;
+  eventValue: string;
+  noteId: string;
+};
+
 export default function AnnotatePiece() {
   const router = useRouter();
   const { id } = router.query;
@@ -67,6 +74,9 @@ export default function AnnotatePiece() {
     type: string;
     value: string;
   } | null>(null);
+  const [temporaryAnnotations, setTemporaryAnnotations] = useState<
+    TemporaryAnnotation[]
+  >([]);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -181,52 +191,71 @@ export default function AnnotatePiece() {
     console.log("Drag start:", dragData);
   };
 
-  const handleDrop = async (selectedIds: string[]) => {
-    if (!selectedIds.length) {
-      setError("Please select a note in the score first");
+  const handleDrop = (selectedIds: string[]) => {
+    if (!selectedIds.length || !currentDragEvent) {
+      //setError("Please select a note in the score first");
       return;
     }
-    console.log("Drop event", selectedIds);
+
+    // Add to temporary annotations
+    const newAnnotation: TemporaryAnnotation = {
+      id: Math.random().toString(36).substr(2, 9), // Generate a unique ID
+      eventType: currentDragEvent.type,
+      eventValue: currentDragEvent.value,
+      noteId: selectedIds[0],
+    };
+
+    setTemporaryAnnotations((prev) => [...prev, newAnnotation]);
+    setCurrentDragEvent(null);
+  };
+
+  const removeTemporaryAnnotation = (id: string) => {
+    setTemporaryAnnotations((prev) => prev.filter((ann) => ann.id !== id));
+  };
+
+  const submitTemporaryAnnotations = async () => {
+    if (temporaryAnnotations.length === 0) {
+      setError("No annotations to submit");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const requestBody = {
-        content: `${currentDragEvent.type}: ${currentDragEvent.value}`,
-        type: "text",
-        selectedMeiIds: selectedIds,
-        uri: null,
-      };
-      console.log("Sending request to create annotation:", requestBody);
+      // Submit each annotation
+      for (const annotation of temporaryAnnotations) {
+        const requestBody = {
+          content: `${annotation.eventType}: ${annotation.eventValue}`,
+          type: "text",
+          selectedMeiIds: [annotation.noteId],
+          uri: null,
+        };
 
-      const response = await fetch(`/api/pieces/${id}/annotations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Failed to create annotation:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
+        const response = await fetch(`/api/pieces/${id}/annotations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
         });
-        throw new Error(
-          `Failed to create annotation: ${
-            errorData.error || response.statusText
-          }`
-        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            `Failed to create annotation: ${
+              errorData.error || response.statusText
+            }`
+          );
+        }
+
+        const newAnnotation = await response.json();
+        setAnnotations((prev) => [...prev, newAnnotation]);
       }
 
-      const newAnnotation = await response.json();
-      console.log("Successfully created annotation:", newAnnotation);
-      setAnnotations([...annotations, newAnnotation]);
-      setSelectedMeiIds([]);
+      // Clear temporary annotations after successful submission
+      setTemporaryAnnotations([]);
       setError(null);
     } catch (err) {
-      console.error("Error in handleDrop:", err);
+      console.error("Error submitting annotations:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsSubmitting(false);
@@ -450,6 +479,44 @@ export default function AnnotatePiece() {
                   </p>
                 )}
               </div>
+            </div>
+
+            <div className="bg-white shadow rounded-lg p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Pending Annotations</h2>
+                <button
+                  onClick={submitTemporaryAnnotations}
+                  disabled={isSubmitting || temporaryAnnotations.length === 0}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {isSubmitting ? "Submitting..." : "Submit All"}
+                </button>
+              </div>
+              {temporaryAnnotations.length === 0 ? (
+                <p className="text-gray-500">No pending annotations</p>
+              ) : (
+                <ul className="space-y-2">
+                  {temporaryAnnotations.map((annotation) => (
+                    <li
+                      key={annotation.id}
+                      className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                    >
+                      <div>
+                        <span className="font-medium">
+                          {annotation.eventType}:
+                        </span>{" "}
+                        {annotation.eventValue} on note {annotation.noteId}
+                      </div>
+                      <button
+                        onClick={() => removeTemporaryAnnotation(annotation.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
