@@ -8,18 +8,6 @@ const VerovioScore = dynamic(() => import("../../../components/VerovioScore"), {
   ssr: false,
 });
 
-interface Annotation {
-  id: string;
-  content: string;
-  type: "text" | "link";
-  uri?: string;
-  selectedMeiIds: string[];
-  createdAt: string;
-  user: {
-    email: string;
-  };
-}
-
 interface PieceProps {
   id: string;
   title: string;
@@ -62,11 +50,7 @@ export default function AnnotatePiece() {
   const [piece, setPiece] = useState<PieceProps | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [selectedMeiIds, setSelectedMeiIds] = useState<string[]>([]);
-  const [annotationContent, setAnnotationContent] = useState("");
-  const [annotationType, setAnnotationType] = useState<"text" | "link">("text");
-  const [annotationUri, setAnnotationUri] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
@@ -101,19 +85,6 @@ export default function AnnotatePiece() {
       }
     };
 
-    const fetchAnnotations = async () => {
-      try {
-        const response = await fetch(`/api/pieces/${id}/annotations`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch annotations");
-        }
-        const data = await response.json();
-        setAnnotations(data);
-      } catch (err) {
-        console.error("Failed to fetch annotations:", err);
-      }
-    };
-
     const fetchSchemas = async () => {
       try {
         const response = await fetch("/api/schemata");
@@ -129,7 +100,6 @@ export default function AnnotatePiece() {
 
     if (id) {
       fetchPiece();
-      fetchAnnotations();
       fetchSchemas();
     }
   }, [id, session, status, router]);
@@ -144,45 +114,6 @@ export default function AnnotatePiece() {
         !selectedIds.every((id, i) => id === selectedMeiIds[i]),
     });
     setSelectedMeiIds(selectedIds);
-  };
-
-  const handleSubmitAnnotation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedMeiIds.length) {
-      setError("Please select a part of the score first");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`/api/pieces/${id}/annotations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: annotationContent,
-          type: annotationType,
-          uri: annotationType === "link" ? annotationUri : undefined,
-          selectedMeiIds,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create annotation");
-      }
-
-      const newAnnotation = await response.json();
-      setAnnotations([...annotations, newAnnotation]);
-      setAnnotationContent("");
-      setAnnotationUri("");
-      setSelectedMeiIds([]);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleDragStart = (e: React.DragEvent, type: string, value: string) => {
@@ -214,46 +145,55 @@ export default function AnnotatePiece() {
   };
 
   const submitTemporaryAnnotations = async () => {
-    if (temporaryAnnotations.length === 0) {
-      setError("No annotations to submit");
+    if (temporaryAnnotations.length === 0 || !selectedSchema) {
+      setError("No annotations to submit or no schema selected");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Submit each annotation
-      for (const annotation of temporaryAnnotations) {
-        const requestBody = {
-          content: `${annotation.eventType}: ${annotation.eventValue}`,
-          type: "text",
-          selectedMeiIds: [annotation.noteId],
-          uri: null,
-        };
-
-        const response = await fetch(`/api/pieces/${id}/annotations`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            `Failed to create annotation: ${
-              errorData.error || response.statusText
-            }`
+      // Get the Gschema_event IDs for each annotation
+      const annotations = await Promise.all(
+        temporaryAnnotations.map(async (annotation) => {
+          const event = selectedSchema.events.find(
+            (e) =>
+              e.type === annotation.eventType &&
+              e.value === annotation.eventValue
           );
-        }
+          if (!event) {
+            throw new Error(
+              `Event not found for ${annotation.eventType}: ${annotation.eventValue}`
+            );
+          }
+          return {
+            eventId: event.id,
+            noteId: annotation.noteId,
+          };
+        })
+      );
 
-        const newAnnotation = await response.json();
-        setAnnotations((prev) => [...prev, newAnnotation]);
+      const response = await fetch(`/api/pieces/${id}/gschema-annotations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          gschemaId: selectedSchema.id,
+          annotations,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          `Failed to create Gschema annotations: ${
+            errorData.error || response.statusText
+          }`
+        );
       }
 
       // Clear temporary annotations after successful submission
       setTemporaryAnnotations([]);
-      setError(null);
     } catch (err) {
       console.error("Error submitting annotations:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -447,40 +387,6 @@ export default function AnnotatePiece() {
           </div>
 
           <div className="space-y-8">
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Annotations</h2>
-              <div className="space-y-4">
-                {annotations.map((annotation) => (
-                  <div key={annotation.id} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-sm text-gray-500">
-                        {new Date(annotation.createdAt).toLocaleString()}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {annotation.user.email}
-                      </span>
-                    </div>
-                    <p className="text-gray-900">{annotation.content}</p>
-                    {annotation.type === "link" && annotation.uri && (
-                      <a
-                        href={annotation.uri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 hover:text-indigo-500 text-sm mt-2 inline-block"
-                      >
-                        {annotation.uri}
-                      </a>
-                    )}
-                  </div>
-                ))}
-                {annotations.length === 0 && (
-                  <p className="text-gray-500 text-center py-4">
-                    No annotations yet. Select a part of the score and add one!
-                  </p>
-                )}
-              </div>
-            </div>
-
             <div className="bg-white shadow rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">Pending Annotations</h2>
