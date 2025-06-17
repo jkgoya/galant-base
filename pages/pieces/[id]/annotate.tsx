@@ -103,10 +103,7 @@ export default function AnnotatePiece() {
     }
   }, [id, session, status, router]);
 
-  const handleDragStart = (
-    e: React.DragEvent | React.TouchEvent,
-    gschema_event_id: string
-  ) => {
+  const handleDragStart = (e: React.DragEvent, gschema_event_id: string) => {
     const dragData = { gschema_event_id };
     setCurrentDragEvent(dragData);
     console.log("Drag start:", dragData);
@@ -349,48 +346,6 @@ export default function AnnotatePiece() {
                                           eventTableid[type][idx]
                                         );
                                       }}
-                                      onTouchStart={(e) => {
-                                        // Prevent default to avoid scrolling while dragging
-                                        e.preventDefault();
-                                        handleDragStart(
-                                          e as any,
-                                          eventTableid[type][idx]
-                                        );
-                                      }}
-                                      onTouchMove={(e) => {
-                                        // Prevent default to avoid scrolling while dragging
-                                        e.preventDefault();
-                                        const touch = e.touches[0];
-                                        const element =
-                                          document.elementFromPoint(
-                                            touch.clientX,
-                                            touch.clientY
-                                          );
-                                        if (element) {
-                                          const noteElement =
-                                            element.closest(".note.placed");
-                                          if (noteElement) {
-                                            const noteId =
-                                              noteElement.getAttribute("id");
-                                            const measureElement =
-                                              noteElement.closest(".measure");
-                                            const measureId =
-                                              measureElement?.getAttribute(
-                                                "id"
-                                              );
-                                            if (noteId && measureId) {
-                                              const measure = parseInt(
-                                                measureId.split("-")[1]
-                                              );
-                                              handleDrop(noteId, measure);
-                                            }
-                                          }
-                                        }
-                                      }}
-                                      onTouchEnd={(e) => {
-                                        e.preventDefault();
-                                        setCurrentDragEvent(null);
-                                      }}
                                       style={{
                                         width: "2rem",
                                         height: "2rem",
@@ -407,7 +362,6 @@ export default function AnnotatePiece() {
                                         fontSize: "0.9rem",
                                         fontWeight: "bold",
                                         cursor: "grab",
-                                        touchAction: "none", // Prevent default touch actions
                                       }}
                                     >
                                       {eventTable[type][idx]}
