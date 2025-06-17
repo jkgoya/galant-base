@@ -4,16 +4,26 @@ import { debounce } from "lodash";
 
 type Props = {
   meiData: string;
-  selectionEnabled?: boolean;
-  onSelection?: (selectedIds: string[]) => void;
-  selectableElements?: string[]; // Array of element types that can be selected (e.g. ['note', 'measure'])
   onDrop?: (selectedId: string, measure: number) => void;
+  temporaryAnnotations?: Array<{
+    id: string;
+    gschema_event_id: string;
+    noteId: string;
+    type: string;
+    value: string;
+  }>;
+  onRemoveAnnotation?: (id: string) => void;
 };
 
 const VEROVIO_CDN =
   "https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js";
 
-const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
+const VerovioScore: React.FC<Props> = ({
+  meiData,
+  onDrop,
+  temporaryAnnotations = [],
+  onRemoveAnnotation,
+}) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,7 +31,7 @@ const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
   const [measureInput, setMeasureInput] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -106,7 +116,7 @@ const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
     initializeScore();
   }, [meiData, verovioReady]);
 
-  // Update SVG when selection changes
+  // Update SVG when selection or temporary annotations change
   useEffect(() => {
     if (!verovioToolkitRef.current || !svg) return;
 
@@ -119,20 +129,96 @@ const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
     });
 
     // Add selected class to elements with matching IDs
-    const idsToHighlight = dragTargetId ? [dragTargetId] : selectedIds;
-    //console.log("Highlighting IDs:", idsToHighlight);
-    idsToHighlight.forEach((id) => {
-      const element = svgDoc.getElementById(id);
-      if (element) {
-        element.classList.add("selected");
-      }
+    const idToHighlight = dragTargetId ? dragTargetId : selectedId;
+    const element = svgDoc.getElementById(idToHighlight);
+    if (element) {
+      element.classList.add("selected");
+    }
+
+    // Remove all existing temporary annotations
+    svgDoc.querySelectorAll(".annotation-markers").forEach((el) => {
+      el.remove();
     });
+
+    // Add annotation markers at the bottom
+    if (temporaryAnnotations.length > 0) {
+      const svgElement = svgDoc.documentElement;
+      const markerGroup = svgDoc.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "g"
+      );
+      markerGroup.setAttribute("class", "annotation-markers");
+
+      const circleSize = 20;
+      const svgRect = containerRef.current
+        ?.querySelector("svg")
+        ?.getBoundingClientRect();
+      if (!svgRect) {
+        console.warn("SVG element not found");
+        return;
+      }
+
+      temporaryAnnotations.forEach((annotation, index) => {
+        const isMelody = annotation.type === "melody";
+
+        // Get the actual DOM element instead of the parsed SVG element
+        const note = containerRef.current?.querySelector(
+          `#${annotation.noteId}`
+        );
+        if (!note) {
+          console.warn("Note element not found:", annotation.noteId);
+          return;
+        }
+
+        const rect = note.getBoundingClientRect();
+
+        const x = rect.left - svgRect.left + rect.width / 2;
+        const y =
+          rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30);
+        console.log("Annotating note:", annotation.noteId, x, y);
+
+        // Create circle
+        const circle = svgDoc.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "circle"
+        );
+        circle.setAttribute("cx", String(x));
+        circle.setAttribute("cy", String(y));
+        circle.setAttribute("r", String(circleSize / 2));
+        circle.setAttribute("fill", isMelody ? "black" : "white");
+        circle.setAttribute("stroke", "black");
+        circle.setAttribute("stroke-width", "1");
+        circle.classList.add("annotation-circle");
+        circle.setAttribute("data-id", annotation.id);
+        circle.style.cursor = "pointer";
+
+        // Create text
+        const text = svgDoc.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text"
+        );
+        text.setAttribute("x", String(x));
+        text.setAttribute("y", String(y));
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "middle");
+        text.setAttribute("fill", isMelody ? "white" : "black");
+        text.setAttribute("font-size", "12");
+        text.setAttribute("font-weight", "bold");
+        text.textContent = annotation.value;
+        text.classList.add("annotation-text");
+
+        markerGroup.appendChild(circle);
+        markerGroup.appendChild(text);
+      });
+
+      svgElement.appendChild(markerGroup);
+    }
 
     // Convert back to string
     const serializer = new XMLSerializer();
     const newSvg = serializer.serializeToString(svgDoc);
     setSvg(newSvg);
-  }, [selectedIds, dragTargetId, svg]);
+  }, [selectedId, dragTargetId, temporaryAnnotations]);
 
   // Render the current page when page changes
   useEffect(() => {
@@ -190,10 +276,15 @@ const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
       });
 
       if (closestNote) {
+        const rect = closestNote.getBoundingClientRect();
+        const noteX = rect.left - svgRect.left + rect.width / 2;
+        const noteY = rect.top - svgRect.top + rect.height / 2;
+        console.log("Closest note:", closestNote.id, noteX, noteY);
+
         const elementId = closestNote.getAttribute("id");
         if (elementId?.startsWith("note")) {
           setDragTargetId(elementId);
-          setSelectedIds([elementId]);
+          setSelectedId(elementId);
         }
       }
     };
@@ -236,8 +327,26 @@ const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
     };
 
     const handleDrop = (event: DragEvent) => {
+      let measure = 1;
+      // get the measure of the note
+      const note = containerRef.current?.querySelector(`#${dragTargetId}`);
+      if (note) {
+        // find the closest parent element of type measure and return the measure id
+        const measureID = note.closest(".measure").getAttribute("id");
+        //const measureID = "measure-L52";
+        const tk = verovioToolkitRef.current;
+        measure = parseInt(tk.getElementAttr(measureID, "n").n);
+      }
+
       event.preventDefault();
       event.stopPropagation();
+
+      try {
+        console.log("Drag drop:", dragTargetId, measure);
+        onDrop(dragTargetId, measure);
+      } catch (err) {
+        console.error("Error handling drag drop:", err);
+      }
     };
 
     const container = containerRef.current;
@@ -269,6 +378,28 @@ const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
       debouncedDragOver.cancel();
     };
   }, [onDrop, dragTargetId]);
+
+  // Add a new useEffect for the click handler
+  useEffect(() => {
+    if (!containerRef.current || !onRemoveAnnotation) return;
+
+    const handleAnnotationClick = (event: MouseEvent) => {
+      const target = event.target as SVGElement;
+      if (target.classList.contains("annotation-circle")) {
+        const id = target.getAttribute("data-id");
+        if (id) {
+          onRemoveAnnotation(id);
+        }
+      }
+    };
+
+    const container = containerRef.current;
+    container.addEventListener("click", handleAnnotationClick);
+
+    return () => {
+      container.removeEventListener("click", handleAnnotationClick);
+    };
+  }, [onRemoveAnnotation]);
 
   const goToPrevPage = () => setPage((p) => Math.max(1, p - 1));
   const goToNextPage = () => setPage((p) => Math.min(pageCount, p + 1));
@@ -341,6 +472,22 @@ const VerovioScore: React.FC<Props> = ({ meiData, onDrop }) => {
         }
         :global(.note.placed.selected *) {
           filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
+        }
+        :global(.annotation-markers) {
+          pointer-events: all;
+        }
+        :global(.annotation-circle) {
+          pointer-events: all;
+          transition: transform 0.2s ease;
+          transform-origin: center;
+          will-change: transform;
+        }
+        :global(.annotation-circle:hover) {
+          filter: brightness(1.1);
+        }
+        :global(.annotation-text) {
+          pointer-events: none;
+          user-select: none;
         }
       `}</style>
     </div>

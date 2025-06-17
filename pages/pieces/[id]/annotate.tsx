@@ -41,6 +41,8 @@ type TemporaryAnnotation = {
   gschema_event_id: string;
   noteId: string;
   measure: number;
+  type: string;
+  value: string;
 };
 
 export default function AnnotatePiece() {
@@ -56,6 +58,8 @@ export default function AnnotatePiece() {
   const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
   const [currentDragEvent, setCurrentDragEvent] = useState<{
     gschema_event_id: string;
+    type: string;
+    value: string;
   } | null>(null);
   const [temporaryAnnotations, setTemporaryAnnotations] = useState<
     TemporaryAnnotation[]
@@ -103,8 +107,13 @@ export default function AnnotatePiece() {
     }
   }, [id, session, status, router]);
 
-  const handleDragStart = (e: React.DragEvent, gschema_event_id: string) => {
-    const dragData = { gschema_event_id };
+  const handleDragStart = (
+    e: React.DragEvent,
+    gschema_event_id: string,
+    type: string,
+    value: string
+  ) => {
+    const dragData = { gschema_event_id, type, value };
     setCurrentDragEvent(dragData);
     console.log("Drag start:", dragData);
   };
@@ -122,6 +131,8 @@ export default function AnnotatePiece() {
       gschema_event_id: currentDragEvent.gschema_event_id,
       noteId: selectedId,
       measure: measure,
+      type: currentDragEvent.type,
+      value: currentDragEvent.value,
     };
 
     setTemporaryAnnotations((prev) => [...prev, newAnnotation]);
@@ -255,9 +266,11 @@ export default function AnnotatePiece() {
               <div className="border rounded-lg p-4">
                 <VerovioScore
                   meiData={piece.meiData}
-                  selectionEnabled={true}
                   onDrop={handleDrop}
-                  selectableElements={["note"]}
+                  temporaryAnnotations={temporaryAnnotations}
+                  onRemoveAnnotation={(id) => {
+                    removeTemporaryAnnotation(id);
+                  }}
                 />
               </div>
             </div>
@@ -343,7 +356,9 @@ export default function AnnotatePiece() {
                                       onDragStart={(e) => {
                                         handleDragStart(
                                           e,
-                                          eventTableid[type][idx]
+                                          eventTableid[type][idx],
+                                          type,
+                                          eventTable[type][idx]
                                         );
                                       }}
                                       style={{
