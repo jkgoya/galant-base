@@ -4,7 +4,7 @@ import Router from "next/router";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
-const allowedExtensions = ["mei", "krn"];
+const allowedExtensions = ["mei", "krn", "mxl", "xml", "musicxml"];
 
 type MusicSource = {
   id: string;
@@ -289,7 +289,7 @@ const NewPiece: React.FC = () => {
 
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!ext || !allowedExtensions.includes(ext)) {
-      setError("File must be .mei or .krn");
+      setError("File must be .mei, .krn, .mxl, .xml, or .musicxml");
       setScoreFormat(null);
       setMeiData("");
       return;
@@ -303,8 +303,15 @@ const NewPiece: React.FC = () => {
       const fileText = await file.text();
       console.log("File content:", fileText.substring(0, 200) + "...");
 
-      if (ext === "krn") {
+      if (
+        ext === "krn" ||
+        ext === "mxl" ||
+        ext === "xml" ||
+        ext === "musicxml"
+      ) {
+        //console.log(fileText);
         const meiData = await renderVerovio(fileText, {}, "mei");
+        //console.log(meiData);
         setMeiData(meiData);
       } else {
         setMeiData(fileText);
@@ -318,6 +325,7 @@ const NewPiece: React.FC = () => {
   };
 
   const submitData = async (e: React.SyntheticEvent) => {
+    console.log("Submitting data:", meiData);
     e.preventDefault();
     setError(null);
     try {
@@ -328,11 +336,13 @@ const NewPiece: React.FC = () => {
         email: session?.user?.email,
         format: scoreFormat,
       };
+      console.log("Body:", body);
       const response = await fetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      console.log("Response:", response);
 
       if (!response.ok) {
         const data = await response.json();
@@ -416,7 +426,11 @@ const NewPiece: React.FC = () => {
               type="text"
               value={composer}
             />
-            <input type="file" accept=".mei,.krn" onChange={handleFileChange} />
+            <input
+              type="file"
+              accept=".mei,.krn,.mxl,.xml,.musicxml"
+              onChange={handleFileChange}
+            />
             <div className="mt-4">
               <button
                 type="submit"
