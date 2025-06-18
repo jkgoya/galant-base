@@ -33,6 +33,9 @@ const VerovioScore: React.FC<Props> = ({
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [notePositions, setNotePositions] = useState<
+    Map<string, { x: number; y: number }>
+  >(new Map());
 
   // Load Verovio script if not already loaded
   useEffect(() => {
@@ -233,6 +236,26 @@ const VerovioScore: React.FC<Props> = ({
     }
   }, [page]);
 
+  // Update note positions when SVG changes
+  useEffect(() => {
+    if (!containerRef.current || !svg) return;
+
+    const positions = new Map();
+    const noteElements = containerRef.current.querySelectorAll(".note.placed");
+    const svgRect = containerRef.current
+      .querySelector("svg")
+      ?.getBoundingClientRect();
+
+    noteElements.forEach((note) => {
+      const rect = note.getBoundingClientRect();
+      const x = rect.left - svgRect.left + rect.width / 2;
+      const y = rect.top - svgRect.top + rect.height / 2;
+      positions.set(note.id, { x, y });
+    });
+
+    setNotePositions(positions);
+  }, [svg]);
+
   // Add drag tracking effect
   useEffect(() => {
     if (!containerRef.current || !onDrop) return;
@@ -249,57 +272,30 @@ const VerovioScore: React.FC<Props> = ({
       const mouseX = event.clientX - svgRect.left;
       const mouseY = event.clientY - svgRect.top;
 
-      // Find all note elements
-      const noteElements =
-        containerRef.current.querySelectorAll(".note.placed");
-      if (!noteElements.length) return;
-
-      // Find the closest note
-      let closestNote: SVGElement | null = null;
+      let closestNote: string | null = null;
       let minDistance = Infinity;
 
-      noteElements.forEach((note) => {
-        const rect = note.getBoundingClientRect();
-        const noteX = rect.left - svgRect.left + rect.width / 2;
-        const noteY = rect.top - svgRect.top + rect.height / 2;
-
+      notePositions.forEach((pos, noteId) => {
         const distance = Math.sqrt(
-          Math.pow(mouseX - noteX, 2) + Math.pow(mouseY - noteY, 2)
+          Math.pow(mouseX - pos.x, 2) + Math.pow(mouseY - pos.y, 2)
         );
-
         if (distance < minDistance) {
           minDistance = distance;
-          closestNote = note as SVGElement;
+          closestNote = noteId;
         }
       });
 
       if (closestNote) {
-        const rect = closestNote.getBoundingClientRect();
-        const noteX = rect.left - svgRect.left + rect.width / 2;
-        const noteY = rect.top - svgRect.top + rect.height / 2;
-        console.log("Closest note:", closestNote.id, noteX, noteY);
-
-        const elementId = closestNote.getAttribute("id");
-        if (elementId?.startsWith("note")) {
-          setDragTargetId(elementId);
-          setSelectedId(elementId);
-        }
+        console.log("Closest note:", closestNote);
+        setDragTargetId(closestNote);
+        setSelectedId(closestNote);
       }
     };
 
     const handleDragLeave = (event: DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      let measure = 1;
-      // get the measure of the note
-      const note = containerRef.current?.querySelector(`#${dragTargetId}`);
-      if (note) {
-        // find the closest parent element of type measure and return the measure id
-        const measureID = note.closest(".measure").getAttribute("id");
-        //const measureID = "measure-L52";
-        const tk = verovioToolkitRef.current;
-        measure = parseInt(tk.getElementAttr(measureID, "n").n);
-      }
+
       // Only handle drag leave if we're leaving the container
       if (
         event.relatedTarget &&
@@ -309,8 +305,7 @@ const VerovioScore: React.FC<Props> = ({
       }
 
       try {
-        console.log("Drag leave:", dragTargetId, measure);
-        //onDrop(dragTargetId, measure);
+        console.log("Drag leave:", dragTargetId);
       } catch (err) {
         console.error("Error handling drag leave:", err);
       }
