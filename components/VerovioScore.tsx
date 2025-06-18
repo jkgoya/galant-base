@@ -1,6 +1,4 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/router";
-import { debounce } from "lodash";
 
 type Props = {
   meiData: string;
@@ -175,7 +173,7 @@ const VerovioScore: React.FC<Props> = ({
         const x = rect.left - svgRect.left + rect.width / 2;
         const y =
           rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30);
-        console.log("Annotating note:", annotation.noteId, x, y);
+        //console.log("Annotating note:", annotation.noteId, x, y);
 
         // Create circle
         const circle = svgDoc.createElementNS(
@@ -289,10 +287,9 @@ const VerovioScore: React.FC<Props> = ({
       }
     };
 
-    // Debounce the drag over handler
-    const debouncedDragOver = debounce(handleDragOver, 10);
-
     const handleDragLeave = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
       let measure = 1;
       // get the measure of the note
       const note = containerRef.current?.querySelector(`#${dragTargetId}`);
@@ -310,15 +307,10 @@ const VerovioScore: React.FC<Props> = ({
       ) {
         return;
       }
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Cancel any pending drag over updates
-      debouncedDragOver.cancel();
 
       try {
         console.log("Drag leave:", dragTargetId, measure);
-        onDrop(dragTargetId, measure);
+        //onDrop(dragTargetId, measure);
       } catch (err) {
         console.error("Error handling drag leave:", err);
       }
@@ -327,6 +319,8 @@ const VerovioScore: React.FC<Props> = ({
     };
 
     const handleDrop = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
       let measure = 1;
       // get the measure of the note
       const note = containerRef.current?.querySelector(`#${dragTargetId}`);
@@ -337,9 +331,6 @@ const VerovioScore: React.FC<Props> = ({
         const tk = verovioToolkitRef.current;
         measure = parseInt(tk.getElementAttr(measureID, "n").n);
       }
-
-      event.preventDefault();
-      event.stopPropagation();
 
       try {
         console.log("Drag drop:", dragTargetId, measure);
@@ -352,30 +343,28 @@ const VerovioScore: React.FC<Props> = ({
     const container = containerRef.current;
 
     // Add event listeners to the container
-    container.addEventListener("dragover", debouncedDragOver);
+    container.addEventListener("dragover", handleDragOver);
     container.addEventListener("dragleave", handleDragLeave);
     container.addEventListener("drop", handleDrop);
 
     // Also add event listeners to the SVG element
     const svg = container.querySelector("svg");
     if (svg) {
-      svg.addEventListener("dragover", debouncedDragOver);
+      svg.addEventListener("dragover", handleDragOver);
       svg.addEventListener("dragleave", handleDragLeave);
       svg.addEventListener("drop", handleDrop);
     }
 
     return () => {
-      container.removeEventListener("dragover", debouncedDragOver);
+      container.removeEventListener("dragover", handleDragOver);
       container.removeEventListener("dragleave", handleDragLeave);
       container.removeEventListener("drop", handleDrop);
 
       if (svg) {
-        svg.removeEventListener("dragover", debouncedDragOver);
+        svg.removeEventListener("dragover", handleDragOver);
         svg.removeEventListener("dragleave", handleDragLeave);
         svg.removeEventListener("drop", handleDrop);
       }
-      // Cancel any pending debounced calls
-      debouncedDragOver.cancel();
     };
   }, [onDrop, dragTargetId]);
 
