@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import Hammer from "hammerjs";
 
 type Props = {
   meiData: string;
@@ -11,6 +12,11 @@ type Props = {
     value: string;
   }>;
   onRemoveAnnotation?: (id: string) => void;
+  touchDragData?: {
+    gschema_event_id: string;
+    type: string;
+    value: string;
+  } | null;
 };
 
 const VEROVIO_CDN =
@@ -21,6 +27,7 @@ const VerovioScore: React.FC<Props> = ({
   onDrop,
   temporaryAnnotations = [],
   onRemoveAnnotation,
+  touchDragData,
 }) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -33,9 +40,18 @@ const VerovioScore: React.FC<Props> = ({
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hammerRef = useRef<HammerManager | null>(null);
   const [notePositions, setNotePositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map());
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+
+  // Update touch drag state when prop changes
+  useEffect(() => {
+    if (touchDragData) {
+      setIsTouchDragging(false); // Reset dragging state when new data is set
+    }
+  }, [touchDragData]);
 
   // Load Verovio script if not already loaded
   useEffect(() => {
@@ -263,27 +279,8 @@ const VerovioScore: React.FC<Props> = ({
     const handleDragOver = (event: DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!containerRef.current) return;
 
-      const svg = containerRef.current.querySelector("svg");
-      if (!svg) return;
-
-      const svgRect = svg.getBoundingClientRect();
-      const mouseX = event.clientX - svgRect.left;
-      const mouseY = event.clientY - svgRect.top;
-
-      let closestNote: string | null = null;
-      let minDistance = Infinity;
-
-      notePositions.forEach((pos, noteId) => {
-        const distance = Math.sqrt(
-          Math.pow(mouseX - pos.x, 2) + Math.pow(mouseY - pos.y, 2)
-        );
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestNote = noteId;
-        }
-      });
+      const closestNote = findClosestNote(event.clientX, event.clientY);
 
       if (closestNote && closestNote !== dragTargetId) {
         console.log("Closest note:", closestNote);
@@ -316,16 +313,10 @@ const VerovioScore: React.FC<Props> = ({
     const handleDrop = (event: DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      let measure = 1;
-      // get the measure of the note
-      const note = containerRef.current?.querySelector(`#${dragTargetId}`);
-      if (note) {
-        // find the closest parent element of type measure and return the measure id
-        const measureID = note.closest(".measure").getAttribute("id");
-        //const measureID = "measure-L52";
-        const tk = verovioToolkitRef.current;
-        measure = parseInt(tk.getElementAttr(measureID, "n").n);
-      }
+
+      if (!dragTargetId) return;
+
+      const measure = getMeasureFromNote(dragTargetId);
 
       try {
         console.log("Drag drop:", dragTargetId, measure);
@@ -361,7 +352,73 @@ const VerovioScore: React.FC<Props> = ({
         svg.removeEventListener("drop", handleDrop);
       }
     };
-  }, [onDrop, dragTargetId]);
+  }, [onDrop, dragTargetId, notePositions]);
+
+  // Initialize Hammer.js for touch functionality
+  useEffect(() => {
+    if (!containerRef.current || !onDrop) return;
+
+    // Clean up existing Hammer instance
+    if (hammerRef.current) {
+      hammerRef.current.destroy();
+      hammerRef.current = null;
+    }
+
+    const container = containerRef.current;
+
+    // Create new Hammer instance
+    const hammer = new Hammer(container);
+    hammerRef.current = hammer;
+
+    // Configure Hammer for pan gestures
+    hammer.get("pan").set({ direction: Hammer.DIRECTION_ALL });
+
+    // Handle pan start (touch drag start)
+    hammer.on("panstart", (event) => {
+      if (!touchDragData) return;
+
+      setIsTouchDragging(true);
+      console.log("Touch drag start:", touchDragData);
+    });
+
+    // Handle pan move (touch drag over)
+    hammer.on("panmove", (event) => {
+      if (!isTouchDragging || !touchDragData) return;
+
+      const closestNote = findClosestNote(event.center.x, event.center.y);
+
+      if (closestNote && closestNote !== dragTargetId) {
+        console.log("Touch closest note:", closestNote);
+        setDragTargetId(closestNote);
+        setSelectedId(closestNote);
+      }
+    });
+
+    // Handle pan end (touch drop)
+    hammer.on("panend", (event) => {
+      if (!isTouchDragging || !touchDragData) return;
+
+      const closestNote = findClosestNote(event.center.x, event.center.y);
+
+      if (closestNote) {
+        const measure = getMeasureFromNote(closestNote);
+        console.log("Touch drop:", closestNote, measure);
+        onDrop(closestNote, measure);
+      }
+
+      // Reset touch drag state
+      setIsTouchDragging(false);
+      setDragTargetId(null);
+    });
+
+    // Cleanup function
+    return () => {
+      if (hammerRef.current) {
+        hammerRef.current.destroy();
+        hammerRef.current = null;
+      }
+    };
+  }, [onDrop, touchDragData, isTouchDragging, dragTargetId, notePositions]);
 
   // Add a new useEffect for the click handler
   useEffect(() => {
@@ -400,6 +457,55 @@ const VerovioScore: React.FC<Props> = ({
     } else {
       setError("Measure not found.");
     }
+  };
+
+  // Helper function to find the closest note to a point
+  const findClosestNote = (clientX: number, clientY: number): string | null => {
+    if (!containerRef.current) return null;
+
+    const svg = containerRef.current.querySelector("svg");
+    if (!svg) return null;
+
+    const svgRect = svg.getBoundingClientRect();
+    const mouseX = clientX - svgRect.left;
+    const mouseY = clientY - svgRect.top;
+
+    let closestNote: string | null = null;
+    let minDistance = Infinity;
+
+    notePositions.forEach((pos, noteId) => {
+      const distance = Math.sqrt(
+        Math.pow(mouseX - pos.x, 2) + Math.pow(mouseY - pos.y, 2)
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestNote = noteId;
+      }
+    });
+
+    return closestNote;
+  };
+
+  // Helper function to get measure number from note ID
+  const getMeasureFromNote = (noteId: string): number => {
+    let measure = 1;
+    const note = containerRef.current?.querySelector(`#${noteId}`);
+    if (note) {
+      const measureElement = note.closest(".measure");
+      if (measureElement) {
+        const measureID = measureElement.getAttribute("id");
+        if (measureID && verovioToolkitRef.current) {
+          try {
+            measure = parseInt(
+              verovioToolkitRef.current.getElementAttr(measureID, "n").n
+            );
+          } catch (err) {
+            console.error("Error getting measure:", err);
+          }
+        }
+      }
+    }
+    return measure;
   };
 
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -441,15 +547,23 @@ const VerovioScore: React.FC<Props> = ({
         ref={containerRef}
         style={{
           position: "relative",
+          touchAction: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
         }}
+        className={isTouchDragging ? "touch-dragging" : ""}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
       <style jsx>{`
         :global(svg) {
           pointer-events: all;
+          touch-action: none;
+          user-select: none;
+          -webkit-user-select: none;
         }
         :global(svg *) {
           pointer-events: all;
+          touch-action: none;
         }
         :global(.note.placed.selected) {
           filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
@@ -459,12 +573,14 @@ const VerovioScore: React.FC<Props> = ({
         }
         :global(.annotation-markers) {
           pointer-events: all;
+          touch-action: none;
         }
         :global(.annotation-circle) {
           pointer-events: all;
           transition: transform 0.2s ease;
           transform-origin: center;
           will-change: transform;
+          touch-action: none;
         }
         :global(.annotation-circle:hover) {
           filter: brightness(1.1);
@@ -472,6 +588,13 @@ const VerovioScore: React.FC<Props> = ({
         :global(.annotation-text) {
           pointer-events: none;
           user-select: none;
+          touch-action: none;
+        }
+        :global(.touch-dragging) {
+          cursor: grabbing !important;
+        }
+        :global(.touch-dragging svg) {
+          cursor: grabbing !important;
         }
       `}</style>
     </div>
