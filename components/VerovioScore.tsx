@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
-import Hammer from "hammerjs";
 
 type Props = {
   meiData: string;
   onDrop?: (selectedId: string, measure: number) => void;
+  onClick?: (selectedId: string, measure: number) => void;
   temporaryAnnotations?: Array<{
     id: string;
     gschema_event_id: string;
@@ -12,11 +12,7 @@ type Props = {
     value: string;
   }>;
   onRemoveAnnotation?: (id: string) => void;
-  touchDragData?: {
-    gschema_event_id: string;
-    type: string;
-    value: string;
-  } | null;
+  isEventSelected?: boolean;
 };
 
 const VEROVIO_CDN =
@@ -25,9 +21,10 @@ const VEROVIO_CDN =
 const VerovioScore: React.FC<Props> = ({
   meiData,
   onDrop,
+  onClick,
   temporaryAnnotations = [],
   onRemoveAnnotation,
-  touchDragData,
+  isEventSelected = false,
 }) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -40,18 +37,9 @@ const VerovioScore: React.FC<Props> = ({
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hammerRef = useRef<HammerManager | null>(null);
   const [notePositions, setNotePositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map());
-  const [isTouchDragging, setIsTouchDragging] = useState(false);
-
-  // Update touch drag state when prop changes
-  useEffect(() => {
-    if (touchDragData) {
-      setIsTouchDragging(false); // Reset dragging state when new data is set
-    }
-  }, [touchDragData]);
 
   // Load Verovio script if not already loaded
   useEffect(() => {
@@ -289,22 +277,6 @@ const VerovioScore: React.FC<Props> = ({
       }
     };
 
-    const handleTouchMove = (event: TouchEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const closestNote = findClosestNote(
-        event.touches[0].clientX,
-        event.touches[0].clientY
-      );
-
-      if (closestNote && closestNote !== dragTargetId) {
-        console.log("Closest note:", closestNote);
-        setDragTargetId(closestNote);
-        setSelectedId(closestNote);
-      }
-    };
-
     const handleDragLeave = (event: DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
@@ -336,32 +308,17 @@ const VerovioScore: React.FC<Props> = ({
 
       try {
         console.log("Drag drop:", dragTargetId, measure);
+        setSelectedId(null);
+        setDragTargetId(null);
         onDrop(dragTargetId, measure);
       } catch (err) {
         console.error("Error handling drag drop:", err);
       }
     };
 
-    const handleTouchEnd = (event: TouchEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (!dragTargetId) return;
-
-      const measure = getMeasureFromNote(dragTargetId);
-      try {
-        console.log("Touch end:", dragTargetId, measure);
-        onDrop(dragTargetId, measure);
-      } catch (err) {
-        console.error("Error handling touch end:", err);
-      }
-    };
-
     const container = containerRef.current;
 
     // Add event listeners to the container
-    container.addEventListener("touchend", handleTouchEnd);
-    container.addEventListener("touchmove", handleTouchMove);
     container.addEventListener("dragover", handleDragOver);
     container.addEventListener("dragleave", handleDragLeave);
     container.addEventListener("drop", handleDrop);
@@ -369,95 +326,23 @@ const VerovioScore: React.FC<Props> = ({
     // Also add event listeners to the SVG element
     const svg = container.querySelector("svg");
     if (svg) {
-      svg.addEventListener("touchend", handleTouchEnd);
-      svg.addEventListener("touchmove", handleTouchMove);
       svg.addEventListener("dragover", handleDragOver);
       svg.addEventListener("dragleave", handleDragLeave);
       svg.addEventListener("drop", handleDrop);
     }
 
     return () => {
-      container.removeEventListener("touchend", handleTouchEnd);
-      container.removeEventListener("touchmove", handleTouchMove);
       container.removeEventListener("dragover", handleDragOver);
       container.removeEventListener("dragleave", handleDragLeave);
       container.removeEventListener("drop", handleDrop);
 
       if (svg) {
-        svg.removeEventListener("touchend", handleTouchEnd);
-        svg.removeEventListener("touchmove", handleTouchMove);
         svg.removeEventListener("dragover", handleDragOver);
         svg.removeEventListener("dragleave", handleDragLeave);
         svg.removeEventListener("drop", handleDrop);
       }
     };
   }, [onDrop, dragTargetId, notePositions]);
-
-  // Initialize Hammer.js for touch functionality
-  useEffect(() => {
-    if (!containerRef.current || !onDrop) return;
-
-    // Clean up existing Hammer instance
-    if (hammerRef.current) {
-      hammerRef.current.destroy();
-      hammerRef.current = null;
-    }
-
-    const container = containerRef.current;
-
-    // Create new Hammer instance
-    const hammer = new Hammer(container);
-    hammerRef.current = hammer;
-
-    // Configure Hammer for pan gestures
-    hammer.get("pan").set({ direction: Hammer.DIRECTION_ALL });
-
-    // Handle pan start (touch drag start)
-    hammer.on("panstart", (event) => {
-      if (!touchDragData) return;
-
-      setIsTouchDragging(true);
-      console.log("Touch drag start:", touchDragData);
-    });
-
-    // Handle pan move (touch drag over)
-    hammer.on("panmove", (event) => {
-      if (!isTouchDragging || !touchDragData) return;
-
-      const closestNote = findClosestNote(event.center.x, event.center.y);
-
-      if (closestNote && closestNote !== dragTargetId) {
-        console.log("Touch closest note:", closestNote);
-        setDragTargetId(closestNote);
-        setSelectedId(closestNote);
-      }
-    });
-
-    // Handle pan end (touch drop)
-    hammer.on("panend", (event) => {
-      if (!isTouchDragging || !touchDragData) return;
-
-      const closestNote = findClosestNote(event.center.x, event.center.y);
-
-      if (closestNote) {
-        const measure = getMeasureFromNote(closestNote);
-        console.log("Touch drop:", closestNote, measure);
-        onDrop(closestNote, measure);
-      }
-
-      // Reset touch drag state
-      setIsTouchDragging(false);
-      setDragTargetId(null);
-    });
-
-    // Cleanup function
-    return () => {
-      if (hammerRef.current) {
-        hammerRef.current.destroy();
-        hammerRef.current = null;
-      }
-    };
-  }, [onDrop, touchDragData, isTouchDragging, dragTargetId, notePositions]);
 
   // Add a new useEffect for the click handler
   useEffect(() => {
@@ -480,6 +365,70 @@ const VerovioScore: React.FC<Props> = ({
       container.removeEventListener("click", handleAnnotationClick);
     };
   }, [onRemoveAnnotation]);
+
+  // Add click handler for notes
+  useEffect(() => {
+    if (!containerRef.current || !onClick) return;
+
+    const handleNoteClick = (event: MouseEvent) => {
+      const target = event.target as SVGElement;
+
+      // Check if the clicked element is a note
+      if (target.classList.contains("note") || target.closest(".note")) {
+        const noteElement = target.classList.contains("note")
+          ? target
+          : target.closest(".note");
+        if (noteElement && noteElement.id) {
+          const measure = getMeasureFromNote(noteElement.id);
+          console.log("Note click:", noteElement.id, measure);
+          onClick(noteElement.id, measure);
+        }
+      } else {
+        // If not clicking directly on a note, find the closest note to cursor position
+        const closestNote = findClosestNote(event.clientX, event.clientY);
+        if (closestNote) {
+          const measure = getMeasureFromNote(closestNote);
+          console.log("Closest note click:", closestNote, measure);
+          onClick(closestNote, measure);
+        }
+      }
+      setSelectedId(null);
+    };
+
+    const container = containerRef.current;
+    container.addEventListener("click", handleNoteClick);
+
+    return () => {
+      container.removeEventListener("click", handleNoteClick);
+    };
+  }, [onClick]);
+
+  // Add cursor tracking for selected events
+  useEffect(() => {
+    if (!containerRef.current || !onClick || !isEventSelected) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const closestNote = findClosestNote(event.clientX, event.clientY);
+      if (closestNote && closestNote !== selectedId) {
+        console.log("Closest note on move:", closestNote);
+        setSelectedId(closestNote);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      console.log("Mouse left SVG area");
+      setSelectedId(null);
+    };
+
+    const container = containerRef.current;
+    container.addEventListener("mousemove", handleMouseMove);
+    container.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      container.removeEventListener("mousemove", handleMouseMove);
+      container.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, [onClick, selectedId, isEventSelected]);
 
   const goToPrevPage = () => setPage((p) => Math.max(1, p - 1));
   const goToNextPage = () => setPage((p) => Math.min(pageCount, p + 1));
@@ -590,7 +539,7 @@ const VerovioScore: React.FC<Props> = ({
           userSelect: "none",
           WebkitUserSelect: "none",
         }}
-        className={isTouchDragging ? "touch-dragging" : ""}
+        className={""}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
       <style jsx>{`

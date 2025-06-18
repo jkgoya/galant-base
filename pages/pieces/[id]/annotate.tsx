@@ -56,7 +56,7 @@ export default function AnnotatePiece() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
-  const [currentDragEvent, setCurrentDragEvent] = useState<{
+  const [selectedEvent, setSelectedEvent] = useState<{
     gschema_event_id: string;
     type: string;
     value: string;
@@ -114,7 +114,7 @@ export default function AnnotatePiece() {
     value: string
   ) => {
     const dragData = { gschema_event_id, type, value };
-    setCurrentDragEvent(dragData);
+    setSelectedEvent(dragData);
     console.log("Drag start:", dragData);
   };
 
@@ -126,33 +126,65 @@ export default function AnnotatePiece() {
   ) => {
     e.preventDefault();
     const dragData = { gschema_event_id, type, value };
-    setCurrentDragEvent(dragData);
+    setSelectedEvent(dragData);
     console.log("Touch start:", dragData);
   };
 
-  const handleDrop = (selectedId: string, measure: number) => {
-    if (!selectedId || !currentDragEvent) {
-      //setError("Please select a note in the score first");
+  const handleSchemaEventClick = (
+    gschema_event_id: string,
+    type: string,
+    value: string
+  ) => {
+    // If this event is already in temporary annotations, remove it
+    if (isEventInTemporaryAnnotations(gschema_event_id)) {
+      removeTemporaryAnnotationByEventId(gschema_event_id);
       return;
     }
-    console.log("Drop:", selectedId, measure);
+
+    // Otherwise, select it for annotation
+    const eventData = { gschema_event_id, type, value };
+    setSelectedEvent(eventData);
+    console.log("Selected event:", eventData);
+  };
+
+  const handleDrop = (selectedId: string, measure: number) => {
+    // Check if we have a drag event or a selected event
+    //const eventToUse = currentDragEvent || selectedEvent;
+
+    if (!selectedId || !selectedEvent) {
+      return;
+    }
+    console.log("Drop/Click:", selectedId, measure);
 
     // Add to temporary annotations
     const newAnnotation: TemporaryAnnotation = {
       id: Math.random().toString(36).substr(2, 9), // Generate a unique ID
-      gschema_event_id: currentDragEvent.gschema_event_id,
+      gschema_event_id: selectedEvent.gschema_event_id,
       noteId: selectedId,
       measure: measure,
-      type: currentDragEvent.type,
-      value: currentDragEvent.value,
+      type: selectedEvent.type,
+      value: selectedEvent.value,
     };
 
     setTemporaryAnnotations((prev) => [...prev, newAnnotation]);
-    setCurrentDragEvent(null);
+    //setCurrentDragEvent(null);
+    setSelectedEvent(null); // Clear selection after annotation
   };
 
   const removeTemporaryAnnotation = (id: string) => {
     setTemporaryAnnotations((prev) => prev.filter((ann) => ann.id !== id));
+  };
+
+  const removeTemporaryAnnotationByEventId = (gschema_event_id: string) => {
+    setTemporaryAnnotations((prev) =>
+      prev.filter((ann) => ann.gschema_event_id !== gschema_event_id)
+    );
+  };
+
+  const isEventInTemporaryAnnotations = (gschema_event_id: string) => {
+    return temporaryAnnotations.some(
+      (ann) => ann.gschema_event_id === gschema_event_id
+    );
   };
 
   const submitTemporaryAnnotations = async () => {
@@ -271,24 +303,39 @@ export default function AnnotatePiece() {
           <h1 className="text-3xl font-bold">Annotate: {piece.title}</h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-8">
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Score</h2>
-              <div className="border rounded-lg p-4">
-                <VerovioScore
-                  meiData={piece.meiData}
-                  onDrop={handleDrop}
-                  temporaryAnnotations={temporaryAnnotations}
-                  onRemoveAnnotation={(id) => {
-                    removeTemporaryAnnotation(id);
-                  }}
-                  //touchDragData={touchDragData}
-                />
-              </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            gap: "2rem",
+            width: "100%",
+          }}
+        >
+          {/* Score Section */}
+          <div
+            className="bg-white shadow rounded-lg p-6"
+            style={{ flexGrow: 1 }}
+          >
+            <h2 className="text-xl font-semibold mb-4">Score</h2>
+            <div className="border rounded-lg p-4">
+              <VerovioScore
+                meiData={piece.meiData}
+                onDrop={handleDrop}
+                onClick={handleDrop}
+                temporaryAnnotations={temporaryAnnotations}
+                onRemoveAnnotation={(id) => {
+                  removeTemporaryAnnotation(id);
+                }}
+                isEventSelected={!!selectedEvent}
+              />
             </div>
-
-            <div className="bg-white shadow rounded-lg p-6">
+          </div>
+          {/* Schema Section */}
+          <div
+            className="bg-white shadow rounded-lg p-6"
+            style={{ width: "300px", flexShrink: 0 }}
+          >
+            <div>
               <h2 className="text-xl font-semibold mb-4">Schema</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -365,24 +412,32 @@ export default function AnnotatePiece() {
                                 >
                                   {type === "bass" || type === "melody" ? (
                                     <div
-                                      draggable
+                                      draggable={
+                                        !isEventInTemporaryAnnotations(
+                                          eventTableid[type][idx]
+                                        )
+                                      }
                                       onDragStart={(e) => {
-                                        handleDragStart(
-                                          e,
+                                        if (
+                                          !isEventInTemporaryAnnotations(
+                                            eventTableid[type][idx]
+                                          )
+                                        ) {
+                                          handleDragStart(
+                                            e,
+                                            eventTableid[type][idx],
+                                            type,
+                                            eventTable[type][idx]
+                                          );
+                                        }
+                                      }}
+                                      onClick={() => {
+                                        handleSchemaEventClick(
                                           eventTableid[type][idx],
                                           type,
                                           eventTable[type][idx]
                                         );
                                       }}
-                                      onTouchStart={(e) => {
-                                        handleTouchStart(
-                                          e,
-                                          eventTableid[type][idx],
-                                          type,
-                                          eventTable[type][idx]
-                                        );
-                                      }}
-                                      //onTouchEnd={handleTouchEnd}
                                       style={{
                                         width: "2rem",
                                         height: "2rem",
@@ -395,20 +450,69 @@ export default function AnnotatePiece() {
                                           type === "bass" ? "white" : "black",
                                         color:
                                           type === "bass" ? "black" : "white",
-                                        border: "1px solid #ccc",
+                                        border: isEventInTemporaryAnnotations(
+                                          eventTableid[type][idx]
+                                        )
+                                          ? "2px solid #ccc"
+                                          : selectedEvent?.gschema_event_id ===
+                                            eventTableid[type][idx]
+                                          ? "2px solid #3b82f6"
+                                          : "1px solid #ccc",
                                         fontSize: "0.9rem",
                                         fontWeight: "bold",
-                                        cursor: "grab",
+                                        cursor: isEventInTemporaryAnnotations(
+                                          eventTableid[type][idx]
+                                        )
+                                          ? "pointer"
+                                          : "pointer",
                                         touchAction: "none",
                                         userSelect: "none",
                                         WebkitUserSelect: "none",
                                         WebkitTouchCallout: "none",
+                                        opacity: isEventInTemporaryAnnotations(
+                                          eventTableid[type][idx]
+                                        )
+                                          ? 0.4
+                                          : 1,
+                                        transition:
+                                          "opacity 0.2s ease-in-out, border 0.2s ease-in-out",
                                       }}
                                     >
                                       {eventTable[type][idx]}
                                     </div>
                                   ) : (
-                                    eventTable[type][idx]
+                                    <div
+                                      onClick={() => {
+                                        handleSchemaEventClick(
+                                          eventTableid[type][idx],
+                                          type,
+                                          eventTable[type][idx]
+                                        );
+                                      }}
+                                      style={{
+                                        cursor: "pointer",
+                                        opacity: isEventInTemporaryAnnotations(
+                                          eventTableid[type][idx]
+                                        )
+                                          ? 0.4
+                                          : 1,
+                                        transition: "opacity 0.2s ease-in-out",
+                                        padding: "0.25rem",
+                                        borderRadius: "0.25rem",
+                                        backgroundColor:
+                                          selectedEvent?.gschema_event_id ===
+                                          eventTableid[type][idx]
+                                            ? "#dbeafe"
+                                            : "transparent",
+                                        border:
+                                          selectedEvent?.gschema_event_id ===
+                                          eventTableid[type][idx]
+                                            ? "1px solid #3b82f6"
+                                            : "none",
+                                      }}
+                                    >
+                                      {eventTable[type][idx]}
+                                    </div>
                                   )}
                                 </td>
                               )
@@ -421,45 +525,53 @@ export default function AnnotatePiece() {
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="space-y-8">
-            <div className="bg-white shadow rounded-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Pending Annotations</h2>
-                <button
-                  onClick={submitTemporaryAnnotations}
-                  disabled={isSubmitting || temporaryAnnotations.length === 0}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? "Submitting..." : "Submit All"}
-                </button>
-              </div>
-              {temporaryAnnotations.length === 0 ? (
-                <p className="text-gray-500">No pending annotations</p>
-              ) : (
-                <ul className="space-y-2">
-                  {temporaryAnnotations.map((annotation) => (
-                    <li
-                      key={annotation.id}
-                      className="flex justify-between items-center p-2 bg-gray-50 rounded"
-                    >
-                      <div>
-                        <span className="font-medium">
-                          {annotation.gschema_event_id}
-                        </span>{" "}
-                        {annotation.noteId + " " + annotation.measure}
-                      </div>
-                      <button
-                        onClick={() => removeTemporaryAnnotation(annotation.id)}
-                        className="text-red-600 hover:text-red-800"
+            {/* Pending Annotations Section */}
+            <div className="mt-8">
+              <div className="bg-white shadow rounded-lg p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-semibold">Pending Annotations</h2>
+                  <button
+                    onClick={submitTemporaryAnnotations}
+                    disabled={isSubmitting || temporaryAnnotations.length === 0}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit All"}
+                  </button>
+                  <button
+                    onClick={() => setTemporaryAnnotations([])}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                {temporaryAnnotations.length === 0 ? (
+                  <p className="text-gray-500">No pending annotations</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {temporaryAnnotations.map((annotation) => (
+                      <li
+                        key={annotation.id}
+                        className="flex justify-between items-center p-2 bg-gray-50 rounded"
                       >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                        <div>
+                          <span className="font-medium">
+                            {annotation.gschema_event_id}
+                          </span>{" "}
+                          {annotation.noteId + " " + annotation.measure}
+                        </div>
+                        <button
+                          onClick={() =>
+                            removeTemporaryAnnotation(annotation.id)
+                          }
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
         </div>
