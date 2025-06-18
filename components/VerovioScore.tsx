@@ -11,6 +11,29 @@ type Props = {
     type: string;
     value: string;
   }>;
+  existingAnnotations?: Array<{
+    schemaId: string;
+    schemaName: string;
+    eventCount: number;
+    schemaType: string;
+    contributor: string;
+    measureStart?: number;
+    measureEnd?: number;
+    events: Array<{
+      id: string;
+      gschemaId: string | null;
+      index: number;
+      type: string;
+      value: string;
+    }>;
+    annotations: Array<{
+      id: string;
+      gschema_event_id: string;
+      noteId: string;
+      type: string;
+      value: string;
+    }>;
+  }>;
   onRemoveAnnotation?: (id: string) => void;
   isEventSelected?: boolean;
 };
@@ -23,6 +46,7 @@ const VerovioScore: React.FC<Props> = ({
   onDrop,
   onClick,
   temporaryAnnotations = [],
+  existingAnnotations = [],
   onRemoveAnnotation,
   isEventSelected = false,
 }) => {
@@ -121,7 +145,7 @@ const VerovioScore: React.FC<Props> = ({
     initializeScore();
   }, [meiData, verovioReady]);
 
-  // Update SVG when selection or temporary annotations change
+  // Update SVG when selection or annotations change
   useEffect(() => {
     if (!verovioToolkitRef.current || !svg) return;
 
@@ -140,13 +164,21 @@ const VerovioScore: React.FC<Props> = ({
       element.classList.add("selected");
     }
 
-    // Remove all existing temporary annotations
+    // Remove all existing annotation markers
     svgDoc.querySelectorAll(".annotation-markers").forEach((el) => {
       el.remove();
     });
 
-    // Add annotation markers at the bottom
-    if (temporaryAnnotations.length > 0) {
+    // Combine temporary and existing annotations
+    const allAnnotations = [
+      ...temporaryAnnotations.map((ann) => ({ ...ann, isTemporary: true })),
+      ...existingAnnotations.flatMap((schema) =>
+        schema.annotations.map((ann) => ({ ...ann, isTemporary: false }))
+      ),
+    ];
+
+    // Add annotation markers
+    if (allAnnotations.length > 0) {
       const svgElement = svgDoc.documentElement;
       const markerGroup = svgDoc.createElementNS(
         "http://www.w3.org/2000/svg",
@@ -163,57 +195,117 @@ const VerovioScore: React.FC<Props> = ({
         return;
       }
 
-      temporaryAnnotations.forEach((annotation, index) => {
-        const isMelody = annotation.type === "melody";
+      // Group annotations by schema
+      const schemaGroups = existingAnnotations.map((schema) => ({
+        schemaName: schema.schemaName,
+        annotations: schema.annotations.map((ann) => ({
+          ...ann,
+          isTemporary: false,
+        })),
+      }));
 
-        // Get the actual DOM element instead of the parsed SVG element
-        const note = containerRef.current?.querySelector(
-          `#${annotation.noteId}`
-        );
-        if (!note) {
-          console.warn("Note element not found:", annotation.noteId);
-          return;
+      // Add temporary annotations as their own group
+      if (temporaryAnnotations.length > 0) {
+        schemaGroups.push({
+          schemaName: "Temporary",
+          annotations: temporaryAnnotations.map((ann) => ({
+            ...ann,
+            isTemporary: true,
+          })),
+        });
+      }
+
+      schemaGroups.forEach((group, groupIndex) => {
+        let lowestY = -Infinity;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        const groupMarkers: SVGElement[] = [];
+
+        group.annotations.forEach((annotation) => {
+          const isMelody = annotation.type === "melody";
+
+          // Get the actual DOM element instead of the parsed SVG element
+          const note = containerRef.current?.querySelector(
+            `#${annotation.noteId}`
+          );
+          if (!note) {
+            console.warn("Note element not found:", annotation.noteId);
+            return;
+          }
+
+          const rect = note.getBoundingClientRect();
+
+          const x = rect.left - svgRect.left + rect.width / 2;
+          const y =
+            rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30);
+
+          // Track the lowest Y position and X range for this group
+          lowestY = Math.max(lowestY, y);
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+
+          // Create circle
+          const circle = svgDoc.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "circle"
+          );
+          circle.setAttribute("cx", String(x));
+          circle.setAttribute("cy", String(y));
+          circle.setAttribute("r", String(circleSize / 2));
+          circle.setAttribute("fill", isMelody ? "black" : "white");
+          circle.setAttribute(
+            "stroke",
+            annotation.isTemporary ? "red" : "blue"
+          );
+          circle.setAttribute(
+            "stroke-width",
+            annotation.isTemporary ? "2" : "1"
+          );
+          circle.classList.add("annotation-circle");
+          circle.setAttribute("data-id", annotation.id);
+          circle.setAttribute("data-temporary", String(annotation.isTemporary));
+          circle.style.cursor = annotation.isTemporary ? "pointer" : "default";
+
+          // Create text
+          const text = svgDoc.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          text.setAttribute("x", String(x));
+          text.setAttribute("y", String(y));
+          text.setAttribute("text-anchor", "middle");
+          text.setAttribute("dominant-baseline", "middle");
+          text.setAttribute("fill", isMelody ? "white" : "black");
+          text.setAttribute("font-size", "12");
+          text.setAttribute("font-weight", "bold");
+          text.textContent = annotation.value;
+          text.classList.add("annotation-text");
+
+          groupMarkers.push(circle, text);
+        });
+
+        // Add schema name below the lowest marker in this group
+        if (groupMarkers.length > 0 && group.schemaName !== "Temporary") {
+          const schemaText = svgDoc.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          // Center the schema name horizontally over the annotation group
+          const centerX = (minX + maxX) / 2;
+          schemaText.setAttribute("x", String(centerX));
+          schemaText.setAttribute("y", String(lowestY + 25));
+          schemaText.setAttribute("text-anchor", "middle");
+          schemaText.setAttribute("fill", "#6b7280");
+          schemaText.setAttribute("font-size", "14");
+          schemaText.setAttribute("font-weight", "bold");
+          schemaText.textContent = group.schemaName;
+          schemaText.classList.add("schema-label");
+
+          groupMarkers.push(schemaText);
         }
 
-        const rect = note.getBoundingClientRect();
-
-        const x = rect.left - svgRect.left + rect.width / 2;
-        const y =
-          rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30);
-        //console.log("Annotating note:", annotation.noteId, x, y);
-
-        // Create circle
-        const circle = svgDoc.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "circle"
-        );
-        circle.setAttribute("cx", String(x));
-        circle.setAttribute("cy", String(y));
-        circle.setAttribute("r", String(circleSize / 2));
-        circle.setAttribute("fill", isMelody ? "black" : "white");
-        circle.setAttribute("stroke", "black");
-        circle.setAttribute("stroke-width", "1");
-        circle.classList.add("annotation-circle");
-        circle.setAttribute("data-id", annotation.id);
-        circle.style.cursor = "pointer";
-
-        // Create text
-        const text = svgDoc.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "text"
-        );
-        text.setAttribute("x", String(x));
-        text.setAttribute("y", String(y));
-        text.setAttribute("text-anchor", "middle");
-        text.setAttribute("dominant-baseline", "middle");
-        text.setAttribute("fill", isMelody ? "white" : "black");
-        text.setAttribute("font-size", "12");
-        text.setAttribute("font-weight", "bold");
-        text.textContent = annotation.value;
-        text.classList.add("annotation-text");
-
-        markerGroup.appendChild(circle);
-        markerGroup.appendChild(text);
+        // Add all markers for this group
+        groupMarkers.forEach((marker) => markerGroup.appendChild(marker));
       });
 
       svgElement.appendChild(markerGroup);
@@ -223,7 +315,7 @@ const VerovioScore: React.FC<Props> = ({
     const serializer = new XMLSerializer();
     const newSvg = serializer.serializeToString(svgDoc);
     setSvg(newSvg);
-  }, [selectedId, dragTargetId, temporaryAnnotations]);
+  }, [selectedId, dragTargetId, temporaryAnnotations, existingAnnotations]);
 
   // Render the current page when page changes
   useEffect(() => {
@@ -245,7 +337,7 @@ const VerovioScore: React.FC<Props> = ({
     if (!containerRef.current || !svg) return;
 
     const positions = new Map();
-    const noteElements = containerRef.current.querySelectorAll(".note.placed");
+    const noteElements = containerRef.current.querySelectorAll(".note");
     const svgRect = containerRef.current
       .querySelector("svg")
       ?.getBoundingClientRect();
@@ -352,7 +444,8 @@ const VerovioScore: React.FC<Props> = ({
       const target = event.target as SVGElement;
       if (target.classList.contains("annotation-circle")) {
         const id = target.getAttribute("data-id");
-        if (id) {
+        const isTemporary = target.getAttribute("data-temporary") === "true";
+        if (id && isTemporary) {
           onRemoveAnnotation(id);
         }
       }
@@ -540,51 +633,58 @@ const VerovioScore: React.FC<Props> = ({
           WebkitUserSelect: "none",
         }}
         className={""}
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-      <style jsx>{`
-        :global(svg) {
-          pointer-events: all;
-          touch-action: none;
-          user-select: none;
-          -webkit-user-select: none;
-        }
-        :global(svg *) {
-          pointer-events: all;
-          touch-action: none;
-        }
-        :global(.note.placed.selected) {
-          filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
-        }
-        :global(.note.placed.selected *) {
-          filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
-        }
-        :global(.annotation-markers) {
-          pointer-events: all;
-          touch-action: none;
-        }
-        :global(.annotation-circle) {
-          pointer-events: all;
-          transition: transform 0.2s ease;
-          transform-origin: center;
-          will-change: transform;
-          touch-action: none;
-        }
-        :global(.annotation-circle:hover) {
-          filter: brightness(1.1);
-        }
-        :global(.annotation-text) {
-          pointer-events: none;
-          user-select: none;
-          touch-action: none;
-        }
-        :global(.touch-dragging) {
-          cursor: grabbing !important;
-        }
-        :global(.touch-dragging svg) {
-          cursor: grabbing !important;
-        }
-      `}</style>
+      >
+        <div
+          dangerouslySetInnerHTML={{ __html: svg }}
+          style={{
+            width: "100%",
+            height: "auto",
+          }}
+        />
+        <style jsx>{`
+          :global(svg) {
+            pointer-events: all;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+          }
+          :global(svg *) {
+            pointer-events: all;
+            touch-action: none;
+          }
+          :global(.note.selected) {
+            filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
+          }
+          :global(.note.selected *) {
+            filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
+          }
+          :global(.annotation-markers) {
+            pointer-events: all;
+            touch-action: none;
+          }
+          :global(.annotation-circle) {
+            pointer-events: all;
+            transition: transform 0.2s ease;
+            transform-origin: center;
+            will-change: transform;
+            touch-action: none;
+          }
+          :global(.annotation-circle:hover) {
+            filter: brightness(1.1);
+          }
+          :global(.annotation-text) {
+            pointer-events: none;
+            user-select: none;
+            touch-action: none;
+          }
+          :global(.touch-dragging) {
+            cursor: grabbing !important;
+          }
+          :global(.touch-dragging svg) {
+            cursor: grabbing !important;
+          }
+        `}</style>
+      </div>
     </div>
   );
 };
