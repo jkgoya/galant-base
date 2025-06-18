@@ -289,6 +289,22 @@ const VerovioScore: React.FC<Props> = ({
       }
     };
 
+    const handleTouchMove = (event: TouchEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const closestNote = findClosestNote(
+        event.touches[0].clientX,
+        event.touches[0].clientY
+      );
+
+      if (closestNote && closestNote !== dragTargetId) {
+        console.log("Closest note:", closestNote);
+        setDragTargetId(closestNote);
+        setSelectedId(closestNote);
+      }
+    };
+
     const handleDragLeave = (event: DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
@@ -326,9 +342,26 @@ const VerovioScore: React.FC<Props> = ({
       }
     };
 
+    const handleTouchEnd = (event: TouchEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!dragTargetId) return;
+
+      const measure = getMeasureFromNote(dragTargetId);
+      try {
+        console.log("Touch end:", dragTargetId, measure);
+        onDrop(dragTargetId, measure);
+      } catch (err) {
+        console.error("Error handling touch end:", err);
+      }
+    };
+
     const container = containerRef.current;
 
     // Add event listeners to the container
+    container.addEventListener("touchend", handleTouchEnd);
+    container.addEventListener("touchmove", handleTouchMove);
     container.addEventListener("dragover", handleDragOver);
     container.addEventListener("dragleave", handleDragLeave);
     container.addEventListener("drop", handleDrop);
@@ -336,17 +369,23 @@ const VerovioScore: React.FC<Props> = ({
     // Also add event listeners to the SVG element
     const svg = container.querySelector("svg");
     if (svg) {
+      svg.addEventListener("touchend", handleTouchEnd);
+      svg.addEventListener("touchmove", handleTouchMove);
       svg.addEventListener("dragover", handleDragOver);
       svg.addEventListener("dragleave", handleDragLeave);
       svg.addEventListener("drop", handleDrop);
     }
 
     return () => {
+      container.removeEventListener("touchend", handleTouchEnd);
+      container.removeEventListener("touchmove", handleTouchMove);
       container.removeEventListener("dragover", handleDragOver);
       container.removeEventListener("dragleave", handleDragLeave);
       container.removeEventListener("drop", handleDrop);
 
       if (svg) {
+        svg.removeEventListener("touchend", handleTouchEnd);
+        svg.removeEventListener("touchmove", handleTouchMove);
         svg.removeEventListener("dragover", handleDragOver);
         svg.removeEventListener("dragleave", handleDragLeave);
         svg.removeEventListener("drop", handleDrop);

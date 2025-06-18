@@ -64,11 +64,6 @@ export default function AnnotatePiece() {
   const [temporaryAnnotations, setTemporaryAnnotations] = useState<
     TemporaryAnnotation[]
   >([]);
-  const [touchDragData, setTouchDragData] = useState<{
-    gschema_event_id: string;
-    type: string;
-    value: string;
-  } | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -130,13 +125,9 @@ export default function AnnotatePiece() {
     value: string
   ) => {
     e.preventDefault();
-    const touchData = { gschema_event_id, type, value };
-    setTouchDragData(touchData);
-    console.log("Touch start:", touchData);
-  };
-
-  const handleTouchEnd = () => {
-    setTouchDragData(null);
+    const dragData = { gschema_event_id, type, value };
+    setCurrentDragEvent(dragData);
+    console.log("Touch start:", dragData);
   };
 
   const handleDrop = (selectedId: string, measure: number) => {
@@ -292,7 +283,7 @@ export default function AnnotatePiece() {
                   onRemoveAnnotation={(id) => {
                     removeTemporaryAnnotation(id);
                   }}
-                  touchDragData={touchDragData}
+                  //touchDragData={touchDragData}
                 />
               </div>
             </div>
@@ -391,7 +382,7 @@ export default function AnnotatePiece() {
                                           eventTable[type][idx]
                                         );
                                       }}
-                                      onTouchEnd={handleTouchEnd}
+                                      //onTouchEnd={handleTouchEnd}
                                       style={{
                                         width: "2rem",
                                         height: "2rem",
