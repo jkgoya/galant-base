@@ -285,7 +285,7 @@ const VerovioScore: React.FC<Props> = ({
         }
       });
 
-      if (closestNote) {
+      if (closestNote && closestNote !== dragTargetId) {
         console.log("Closest note:", closestNote);
         setDragTargetId(closestNote);
         setSelectedId(closestNote);
