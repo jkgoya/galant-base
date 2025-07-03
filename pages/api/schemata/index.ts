@@ -22,6 +22,9 @@ export default async function handler(
         include: {
           events: true,
         },
+        orderBy: {
+          orderIndex: "asc",
+        },
       });
 
       return res.status(200).json(schemas);

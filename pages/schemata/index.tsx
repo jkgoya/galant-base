@@ -21,6 +21,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     include: {
       events: true,
     },
+    orderBy: {
+      orderIndex: "asc",
+    },
   });
 
   return {
