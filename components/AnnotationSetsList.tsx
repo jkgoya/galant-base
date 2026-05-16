@@ -1,7 +1,8 @@
 import type { GschemaAnnotationSchema } from "../lib/gschema-annotations";
 import {
-  formatMeasureRange,
+  formatMeasureRangeShort,
   getLowestMeasure,
+  getMeasureRangeForDisplay,
 } from "../lib/gschema-annotations";
 
 type Props = {
@@ -29,10 +30,8 @@ export default function AnnotationSetsList({
   return (
     <div className="space-y-6">
       {annotations.map((schema) => {
-        const measureRange = formatMeasureRange(
-          schema.measureStart,
-          schema.measureEnd
-        );
+        const { start, end } = getMeasureRangeForDisplay(schema);
+        const measureLabel = formatMeasureRangeShort(start, end);
         const lowestMeasure = getLowestMeasure(schema);
 
         return (
@@ -45,18 +44,18 @@ export default function AnnotationSetsList({
                 <h4 className="text-base font-semibold text-gray-900 mb-1">
                   {schema.schemaName}
                 </h4>
-                {measureRange && (
-                  <p className="text-sm text-gray-600">{measureRange}</p>
-                )}
-                {lowestMeasure != null && onGoToMeasure && (
-                  <button
-                    type="button"
-                    onClick={() => onGoToMeasure(lowestMeasure)}
-                    className="mt-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-                  >
-                    Go to measure {lowestMeasure} in score
-                  </button>
-                )}
+                {measureLabel &&
+                  (lowestMeasure != null && onGoToMeasure ? (
+                    <button
+                      type="button"
+                      onClick={() => onGoToMeasure(lowestMeasure)}
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                    >
+                      Go to {measureLabel}
+                    </button>
+                  ) : (
+                    <p className="text-sm text-gray-600">{measureLabel}</p>
+                  ))}
                 {schema.contributor && (
                   <p className="text-sm text-gray-500">by {schema.contributor}</p>
                 )}

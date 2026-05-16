@@ -59,6 +59,40 @@ export function formatMeasureRange(
   return null;
 }
 
+/** Short measure label for links, e.g. "m. 1" or "mm. 1–5". */
+export function formatMeasureRangeShort(
+  measureStart?: number,
+  measureEnd?: number
+): string | null {
+  if (measureStart == null && measureEnd == null) return null;
+  if (
+    measureStart != null &&
+    measureEnd != null &&
+    measureStart === measureEnd
+  ) {
+    return `m. ${measureStart}`;
+  }
+  if (measureStart != null && measureEnd != null) {
+    return `mm. ${measureStart}–${measureEnd}`;
+  }
+  if (measureStart != null) return `m. ${measureStart}`;
+  if (measureEnd != null) return `m. ${measureEnd}`;
+  return null;
+}
+
+export function getMeasureRangeForDisplay(
+  schema: GschemaAnnotationSchema
+): { start?: number; end?: number } {
+  if (schema.measureStart != null || schema.measureEnd != null) {
+    return { start: schema.measureStart, end: schema.measureEnd };
+  }
+  const measures = schema.annotations
+    .map((a) => a.measure)
+    .filter((m): m is number => m != null);
+  if (measures.length === 0) return {};
+  return { start: Math.min(...measures), end: Math.max(...measures) };
+}
+
 type GschemaPieceWithRelations = Awaited<
   ReturnType<typeof fetchGschemaPiecesForPiece>
 >[number];
