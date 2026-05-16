@@ -58,90 +58,7 @@ export default function AnnotationSetsList({
               )}
             </div>
 
-            <div className="overflow-x-auto mb-4">
-              <table className="min-w-full border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left p-2 border-b border-gray-300">Type</th>
-                    {Array.from({ length: schema.eventCount }, (_, idx) => (
-                      <th
-                        key={idx}
-                        className="p-2 w-12 text-center border-b border-gray-300"
-                      >
-                        Event {idx + 1}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {["melody", "bass", "meter", "figures", "roman"].map((type) => (
-                    <tr key={type}>
-                      <td className="font-semibold text-gray-700 p-2 border-b border-gray-200 capitalize">
-                        {type}
-                      </td>
-                      {Array.from({ length: schema.eventCount }, (_, idx) => {
-                        const event = schema.events.find(
-                          (ev) => ev.type === type && ev.index === idx
-                        );
-                        const placement = event
-                          ? schema.annotations.find(
-                              (ann) => ann.gschema_event_id === event.id
-                            )
-                          : undefined;
-                        const isAnnotated = !!placement;
-
-                        return (
-                          <td
-                            key={idx}
-                            className={`p-2 text-center border-b border-gray-200 ${
-                              isAnnotated ? "bg-blue-50" : ""
-                            }`}
-                          >
-                            {type === "bass" || type === "melody" ? (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <div
-                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border ${
-                                    type === "bass"
-                                      ? "bg-white text-black border-gray-400"
-                                      : "bg-black text-white border-gray-400"
-                                  } ${isAnnotated ? "border-blue-500" : ""}`}
-                                >
-                                  {event?.value || ""}
-                                </div>
-                                {placement?.measure != null && (
-                                  <span className="text-[10px] text-blue-700 font-medium">
-                                    m.{placement.measure}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span
-                                  className={
-                                    isAnnotated
-                                      ? "text-blue-800 font-bold"
-                                      : "text-gray-700"
-                                  }
-                                >
-                                  {event?.value || ""}
-                                </span>
-                                {placement?.measure != null && (
-                                  <span className="text-[10px] text-blue-700 font-medium">
-                                    m.{placement.measure}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {schema.annotations.length > 0 && (
+            {schema.annotations.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm border-collapse">
                   <thead>
@@ -187,6 +104,8 @@ export default function AnnotationSetsList({
                   </tbody>
                 </table>
               </div>
+            ) : (
+              <p className="text-sm text-gray-500">No placements recorded.</p>
             )}
           </div>
         );
