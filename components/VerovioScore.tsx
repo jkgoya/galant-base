@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 
 type Props = {
   meiData: string;
@@ -54,6 +54,7 @@ const VerovioScore: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [verovioReady, setVerovioReady] = useState(false);
+  const [scoreReady, setScoreReady] = useState(false);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
   const [measureInput, setMeasureInput] = useState("");
@@ -61,6 +62,7 @@ const VerovioScore: React.FC<Props> = ({
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const baseSvgRef = useRef<string>("");
   const [notePositions, setNotePositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map());
@@ -105,6 +107,7 @@ const VerovioScore: React.FC<Props> = ({
 
     setLoading(true);
     setError("");
+    setScoreReady(false);
 
     const initializeScore = async () => {
       try {
@@ -133,10 +136,11 @@ const VerovioScore: React.FC<Props> = ({
 
         setPage(1);
         setPageCount(tk.getPageCount());
-        setSvg(tk.renderToSVG(1, {}));
+        setScoreReady(true);
       } catch (err) {
         setError("Failed to render score.");
         setSvg("");
+        setScoreReady(false);
       } finally {
         setLoading(false);
       }
@@ -145,12 +149,36 @@ const VerovioScore: React.FC<Props> = ({
     initializeScore();
   }, [meiData, verovioReady]);
 
-  // Update SVG when selection or annotations change
-  useEffect(() => {
-    if (!verovioToolkitRef.current || !svg) return;
+  // Render the current page and apply selection/annotation overlays
+  useLayoutEffect(() => {
+    const tk = verovioToolkitRef.current;
+    if (!tk || !scoreReady) return;
+
+    let rawSvg: string;
+    try {
+      rawSvg = tk.renderToSVG(page, {});
+      baseSvgRef.current = rawSvg;
+    } catch (err) {
+      setError("Failed to render page.");
+      baseSvgRef.current = "";
+      setSvg("");
+      return;
+    }
 
     const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(svg, "image/svg+xml");
+    const svgDoc = parser.parseFromString(rawSvg, "image/svg+xml");
+
+    // Mount the raw page in the DOM so note positions can be measured
+    const scoreContainer = containerRef.current
+      ?.firstElementChild as HTMLElement | null;
+    if (scoreContainer) {
+      scoreContainer.innerHTML = rawSvg;
+    }
+
+    const commitSvg = () => {
+      const serializer = new XMLSerializer();
+      setSvg(serializer.serializeToString(svgDoc));
+    };
 
     // Remove all existing selected classes
     svgDoc.querySelectorAll(".selected").forEach((el) => {
@@ -192,6 +220,7 @@ const VerovioScore: React.FC<Props> = ({
         ?.getBoundingClientRect();
       if (!svgRect) {
         console.warn("SVG element not found");
+        commitSvg();
         return;
       }
 
@@ -311,26 +340,15 @@ const VerovioScore: React.FC<Props> = ({
       svgElement.appendChild(markerGroup);
     }
 
-    // Convert back to string
-    const serializer = new XMLSerializer();
-    const newSvg = serializer.serializeToString(svgDoc);
-    setSvg(newSvg);
-  }, [selectedId, dragTargetId, temporaryAnnotations, existingAnnotations]);
-
-  // Render the current page when page changes
-  useEffect(() => {
-    const tk = verovioToolkitRef.current;
-    if (!tk || !meiData || !verovioReady) return;
-    setLoading(true);
-    try {
-      setSvg(tk.renderToSVG(page, {}));
-    } catch (err) {
-      setError("Failed to render page.");
-      setSvg("");
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
+    commitSvg();
+  }, [
+    page,
+    scoreReady,
+    selectedId,
+    dragTargetId,
+    temporaryAnnotations,
+    existingAnnotations,
+  ]);
 
   // Update note positions when SVG changes
   useEffect(() => {
@@ -590,8 +608,7 @@ const VerovioScore: React.FC<Props> = ({
   };
 
   if (error) return <p style={{ color: "red" }}>{error}</p>;
-  if (loading) return <p>Loading score...</p>;
-  if (!svg) return <p>...</p>;
+  if (!scoreReady) return <p>Loading score...</p>;
 
   return (
     <div>
