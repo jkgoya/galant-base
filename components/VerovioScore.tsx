@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
+import { flushSync } from "react-dom";
 
 type Props = {
   meiData: string;
@@ -62,6 +63,9 @@ const VerovioScore: React.FC<Props> = ({
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const baseSvgRef = useRef<string>("");
+  const skipPageRenderRef = useRef(true);
+  const mountedBaseForRevision = useRef(-1);
+  const [scoreRevision, setScoreRevision] = useState(0);
   const [notePositions, setNotePositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map());
@@ -136,6 +140,9 @@ const VerovioScore: React.FC<Props> = ({
         setPageCount(tk.getPageCount());
         const rawSvg = tk.renderToSVG(1, {});
         baseSvgRef.current = rawSvg;
+        skipPageRenderRef.current = true;
+        mountedBaseForRevision.current = -1;
+        setScoreRevision((r) => r + 1);
         setSvg(rawSvg);
       } catch (err) {
         setError("Failed to render score.");
@@ -148,37 +155,32 @@ const VerovioScore: React.FC<Props> = ({
     initializeScore();
   }, [meiData, verovioReady]);
 
-  // Render the current page when page changes
+  // Re-render base SVG when the user changes pages (init handles page 1)
   useEffect(() => {
     const tk = verovioToolkitRef.current;
     if (!tk || !meiData || !verovioReady) return;
-    setLoading(true);
+    if (skipPageRenderRef.current) {
+      skipPageRenderRef.current = false;
+      return;
+    }
     try {
       const rawSvg = tk.renderToSVG(page, {});
       baseSvgRef.current = rawSvg;
-      setSvg(rawSvg);
+      setScoreRevision((r) => r + 1);
     } catch (err) {
       setError("Failed to render page.");
       baseSvgRef.current = "";
       setSvg("");
-    } finally {
-      setLoading(false);
     }
   }, [page, meiData, verovioReady]);
 
-  // Update SVG when selection, annotations, or page change
-  useEffect(() => {
+  // Apply selection and annotation overlays (sole writer of displayed SVG)
+  useLayoutEffect(() => {
     if (!verovioToolkitRef.current || !baseSvgRef.current) return;
 
     const rawSvg = baseSvgRef.current;
     const parser = new DOMParser();
     const svgDoc = parser.parseFromString(rawSvg, "image/svg+xml");
-
-    const scoreContainer = containerRef.current
-      ?.firstElementChild as HTMLElement | null;
-    if (scoreContainer) {
-      scoreContainer.innerHTML = rawSvg;
-    }
 
     // Remove all existing selected classes
     svgDoc.querySelectorAll(".selected").forEach((el) => {
@@ -209,6 +211,10 @@ const VerovioScore: React.FC<Props> = ({
 
     // Add annotation markers
     if (allAnnotations.length > 0) {
+      if (mountedBaseForRevision.current !== scoreRevision) {
+        mountedBaseForRevision.current = scoreRevision;
+        flushSync(() => setSvg(rawSvg));
+      }
       const svgElement = svgDoc.documentElement;
       const markerGroup = svgDoc.createElementNS(
         "http://www.w3.org/2000/svg",
@@ -221,7 +227,6 @@ const VerovioScore: React.FC<Props> = ({
         ?.querySelector("svg")
         ?.getBoundingClientRect();
       if (!svgRect) {
-        console.warn("SVG element not found");
         return;
       }
 
@@ -347,7 +352,7 @@ const VerovioScore: React.FC<Props> = ({
     const newSvg = serializer.serializeToString(svgDoc);
     setSvg(newSvg);
   }, [
-    page,
+    scoreRevision,
     selectedId,
     dragTargetId,
     temporaryAnnotations,
