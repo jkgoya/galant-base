@@ -70,6 +70,7 @@ const VerovioScore: React.FC<Props> = ({
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const baseSvgRef = useRef<string>("");
+  const overlayRequestRef = useRef(0);
   const existingAnnotationCount = useMemo(
     () =>
       existingAnnotations.reduce(
@@ -173,6 +174,39 @@ const VerovioScore: React.FC<Props> = ({
     );
   };
 
+  const getAnnotationPosition = (
+    svgDoc: Document,
+    noteId: string,
+    isMelody: boolean,
+    svgRect: DOMRect | null
+  ): { x: number; y: number } | null => {
+    if (svgRect) {
+      const note = findNoteElement(noteId);
+      if (note) {
+        const rect = note.getBoundingClientRect();
+        return {
+          x: rect.left - svgRect.left + rect.width / 2,
+          y: rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30),
+        };
+      }
+    }
+
+    const note = svgDoc.getElementById(noteId);
+    if (note && "getBBox" in note && typeof note.getBBox === "function") {
+      try {
+        const bbox = (note as unknown as SVGGraphicsElement).getBBox();
+        return {
+          x: bbox.x + bbox.width / 2,
+          y: bbox.y + bbox.height / 2 + (isMelody ? -30 : 30),
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  };
+
   const applyScoreOverlay = useCallback(
     (rawSvg: string) => {
       const parser = new DOMParser();
@@ -225,9 +259,7 @@ const VerovioScore: React.FC<Props> = ({
           ?.querySelector("svg")
           ?.getBoundingClientRect();
         if (!svgRect) {
-          console.warn("SVG element not found");
-          commitSvg();
-          return;
+          console.warn("SVG element not found for annotation overlay");
         }
 
         const schemaGroups = existingAnnotations.map((schema) => ({
@@ -256,17 +288,18 @@ const VerovioScore: React.FC<Props> = ({
 
           group.annotations.forEach((annotation) => {
             const isMelody = annotation.type === "melody";
-            const note = findNoteElement(annotation.noteId);
-            if (!note) {
+            const position = getAnnotationPosition(
+              svgDoc,
+              annotation.noteId,
+              isMelody,
+              svgRect ?? null
+            );
+            if (!position) {
               console.warn("Note element not found:", annotation.noteId);
               return;
             }
 
-            const rect = note.getBoundingClientRect();
-            const x = rect.left - svgRect.left + rect.width / 2;
-            const y =
-              rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30);
-
+            const { x, y } = position;
             lowestY = Math.max(lowestY, y);
             minX = Math.min(minX, x);
             maxX = Math.max(maxX, x);
@@ -334,7 +367,9 @@ const VerovioScore: React.FC<Props> = ({
           groupMarkers.forEach((marker) => markerGroup.appendChild(marker));
         });
 
-        svgElement.appendChild(markerGroup);
+        if (markerGroup.childNodes.length > 0) {
+          svgElement.appendChild(markerGroup);
+        }
       }
 
       commitSvg();
@@ -347,30 +382,57 @@ const VerovioScore: React.FC<Props> = ({
     ]
   );
 
+  const scheduleApplyOverlay = useCallback(
+    (rawSvg: string) => {
+      baseSvgRef.current = rawSvg;
+      const requestId = ++overlayRequestRef.current;
+
+      const needsMeasurement =
+        existingAnnotationCount > 0 || temporaryAnnotations.length > 0;
+
+      const run = () => {
+        if (requestId !== overlayRequestRef.current) return;
+        applyScoreOverlay(rawSvg);
+      };
+
+      if (needsMeasurement) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(run);
+        });
+      } else {
+        run();
+      }
+    },
+    [
+      applyScoreOverlay,
+      existingAnnotationCount,
+      temporaryAnnotations.length,
+    ]
+  );
+
   // Render the current page from Verovio
   useLayoutEffect(() => {
     const tk = verovioToolkitRef.current;
     if (!tk || !scoreReady) return;
 
     try {
-      const rawSvg = tk.renderToSVG(page, {});
-      baseSvgRef.current = rawSvg;
-      applyScoreOverlay(rawSvg);
+      scheduleApplyOverlay(tk.renderToSVG(page, {}));
     } catch (err) {
       setError("Failed to render page.");
       baseSvgRef.current = "";
       setSvg("");
     }
-  }, [page, scoreReady, applyScoreOverlay]);
+  }, [page, scoreReady, scheduleApplyOverlay]);
 
   // Re-apply overlays when annotations load or change without a page turn
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!scoreReady || !baseSvgRef.current) return;
-    applyScoreOverlay(baseSvgRef.current);
+    scheduleApplyOverlay(baseSvgRef.current);
   }, [
     scoreReady,
     existingAnnotationCount,
-    applyScoreOverlay,
+    existingAnnotations,
+    scheduleApplyOverlay,
   ]);
 
   // Update note positions when SVG changes
@@ -631,7 +693,6 @@ const VerovioScore: React.FC<Props> = ({
   };
 
   if (error) return <p style={{ color: "red" }}>{error}</p>;
-  if (!scoreReady) return <p>Loading score...</p>;
 
   return (
     <div>
@@ -664,6 +725,7 @@ const VerovioScore: React.FC<Props> = ({
           </button>
         </form>
       </div>
+      {!scoreReady && <p>Loading score...</p>}
       <div
         ref={containerRef}
         style={{
@@ -671,6 +733,8 @@ const VerovioScore: React.FC<Props> = ({
           touchAction: "none",
           userSelect: "none",
           WebkitUserSelect: "none",
+          visibility: scoreReady ? "visible" : "hidden",
+          minHeight: scoreReady ? undefined : 200,
         }}
         className={""}
       >
