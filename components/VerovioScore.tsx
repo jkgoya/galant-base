@@ -169,8 +169,8 @@ const VerovioScore: React.FC<Props> = ({
     initializeScore();
   }, [meiData, verovioReady]);
 
-  // Re-render base SVG when the user changes pages (init handles page 1)
-  useEffect(() => {
+  // Re-render base SVG when the user changes pages (runs before overlay in same commit)
+  useLayoutEffect(() => {
     const tk = verovioToolkitRef.current;
     if (!tk || !meiData || !verovioReady) return;
     if (page === lastRenderedPageRef.current) return;
@@ -247,14 +247,11 @@ const VerovioScore: React.FC<Props> = ({
     }
 
     // Add annotation markers
-    if (schemaGroups.length > 0) {
-      const svgRect = containerRef.current
-        ?.querySelector("svg")
-        ?.getBoundingClientRect();
-      if (!svgRect) {
-        return;
-      }
+    const svgRect = containerRef.current
+      ?.querySelector("svg")
+      ?.getBoundingClientRect();
 
+    if (schemaGroups.length > 0 && svgRect) {
       const svgElement = svgDoc.documentElement;
       const markerGroup = svgDoc.createElementNS(
         "http://www.w3.org/2000/svg",
@@ -364,7 +361,6 @@ const VerovioScore: React.FC<Props> = ({
     const newSvg = serializer.serializeToString(svgDoc);
     setSvg(newSvg);
   }, [
-    page,
     scoreRevision,
     selectedId,
     dragTargetId,
