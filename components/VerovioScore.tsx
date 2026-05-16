@@ -63,9 +63,23 @@ const VerovioScore: React.FC<Props> = ({
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const baseSvgRef = useRef<string>("");
-  const skipPageRenderRef = useRef(true);
+  const lastRenderedPageRef = useRef(0);
   const mountedBaseForRevision = useRef(-1);
   const [scoreRevision, setScoreRevision] = useState(0);
+
+  const isNoteOnCurrentPage = (noteId: string): boolean => {
+    const container = containerRef.current;
+    if (!container || !noteId) return false;
+    const note = container.querySelector(`#${CSS.escape(noteId)}`);
+    if (!note) return false;
+    const tk = verovioToolkitRef.current;
+    if (!tk) return true;
+    try {
+      return tk.getPageWithElement(noteId) === page;
+    } catch {
+      return true;
+    }
+  };
   const [notePositions, setNotePositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map());
@@ -140,7 +154,7 @@ const VerovioScore: React.FC<Props> = ({
         setPageCount(tk.getPageCount());
         const rawSvg = tk.renderToSVG(1, {});
         baseSvgRef.current = rawSvg;
-        skipPageRenderRef.current = true;
+        lastRenderedPageRef.current = 1;
         mountedBaseForRevision.current = -1;
         setScoreRevision((r) => r + 1);
         setSvg(rawSvg);
@@ -159,13 +173,12 @@ const VerovioScore: React.FC<Props> = ({
   useEffect(() => {
     const tk = verovioToolkitRef.current;
     if (!tk || !meiData || !verovioReady) return;
-    if (skipPageRenderRef.current) {
-      skipPageRenderRef.current = false;
-      return;
-    }
+    if (page === lastRenderedPageRef.current) return;
     try {
       const rawSvg = tk.renderToSVG(page, {});
       baseSvgRef.current = rawSvg;
+      lastRenderedPageRef.current = page;
+      mountedBaseForRevision.current = -1;
       setScoreRevision((r) => r + 1);
     } catch (err) {
       setError("Failed to render page.");
@@ -201,28 +214,40 @@ const VerovioScore: React.FC<Props> = ({
       el.remove();
     });
 
-    // Combine temporary and existing annotations
-    const allAnnotations = [
-      ...temporaryAnnotations.map((ann) => ({ ...ann, isTemporary: true })),
-      ...existingAnnotations.flatMap((schema) =>
-        schema.annotations.map((ann) => ({ ...ann, isTemporary: false }))
-      ),
-    ];
+    // Ensure the displayed score matches the current page before filtering notes
+    if (mountedBaseForRevision.current !== scoreRevision) {
+      mountedBaseForRevision.current = scoreRevision;
+      flushSync(() => setSvg(rawSvg));
+    }
+
+    // Group annotations by schema (only notes on the current page)
+    const schemaGroups = existingAnnotations
+      .map((schema) => ({
+        schemaName: schema.schemaName,
+        annotations: schema.annotations
+          .filter((ann) => isNoteOnCurrentPage(ann.noteId))
+          .map((ann) => ({
+            ...ann,
+            isTemporary: false,
+          })),
+      }))
+      .filter((group) => group.annotations.length > 0);
+
+    const temporaryOnPage = temporaryAnnotations.filter((ann) =>
+      isNoteOnCurrentPage(ann.noteId)
+    );
+    if (temporaryOnPage.length > 0) {
+      schemaGroups.push({
+        schemaName: "Temporary",
+        annotations: temporaryOnPage.map((ann) => ({
+          ...ann,
+          isTemporary: true,
+        })),
+      });
+    }
 
     // Add annotation markers
-    if (allAnnotations.length > 0) {
-      if (mountedBaseForRevision.current !== scoreRevision) {
-        mountedBaseForRevision.current = scoreRevision;
-        flushSync(() => setSvg(rawSvg));
-      }
-      const svgElement = svgDoc.documentElement;
-      const markerGroup = svgDoc.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "g"
-      );
-      markerGroup.setAttribute("class", "annotation-markers");
-
-      const circleSize = 20;
+    if (schemaGroups.length > 0) {
       const svgRect = containerRef.current
         ?.querySelector("svg")
         ?.getBoundingClientRect();
@@ -230,27 +255,15 @@ const VerovioScore: React.FC<Props> = ({
         return;
       }
 
-      // Group annotations by schema
-      const schemaGroups = existingAnnotations.map((schema) => ({
-        schemaName: schema.schemaName,
-        annotations: schema.annotations.map((ann) => ({
-          ...ann,
-          isTemporary: false,
-        })),
-      }));
+      const svgElement = svgDoc.documentElement;
+      const markerGroup = svgDoc.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "g"
+      );
+      markerGroup.setAttribute("class", "annotation-markers");
+      const circleSize = 20;
 
-      // Add temporary annotations as their own group
-      if (temporaryAnnotations.length > 0) {
-        schemaGroups.push({
-          schemaName: "Temporary",
-          annotations: temporaryAnnotations.map((ann) => ({
-            ...ann,
-            isTemporary: true,
-          })),
-        });
-      }
-
-      schemaGroups.forEach((group, groupIndex) => {
+      schemaGroups.forEach((group) => {
         let lowestY = -Infinity;
         let minX = Infinity;
         let maxX = -Infinity;
@@ -260,10 +273,9 @@ const VerovioScore: React.FC<Props> = ({
           const isMelody = annotation.type === "melody";
 
           // Get the actual DOM element instead of the parsed SVG element
-          const note =
-            containerRef.current?.querySelector(
-              `#${CSS.escape(annotation.noteId)}`
-            ) ?? document.getElementById(annotation.noteId);
+          const note = containerRef.current?.querySelector(
+            `#${CSS.escape(annotation.noteId)}`
+          );
           if (!note) {
             console.warn("Note element not found:", annotation.noteId);
             return;
@@ -352,6 +364,7 @@ const VerovioScore: React.FC<Props> = ({
     const newSvg = serializer.serializeToString(svgDoc);
     setSvg(newSvg);
   }, [
+    page,
     scoreRevision,
     selectedId,
     dragTargetId,
