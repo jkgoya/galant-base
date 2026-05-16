@@ -43,6 +43,28 @@ const VEROVIO_CDN =
 
 const EMPTY_ANNOTATIONS: never[] = [];
 
+/** Resolve a measure's @xml:id from MEI by its `n` attribute (not "m1", "m2", etc.). */
+function findMeasureXmlIdByNumber(
+  mei: string,
+  measureNumber: number
+): string | null {
+  const doc = new DOMParser().parseFromString(mei, "application/xml");
+  if (doc.querySelector("parsererror")) return null;
+
+  const measures = doc.getElementsByTagName("measure");
+  for (let i = 0; i < measures.length; i++) {
+    const m = measures[i];
+    const n = m.getAttribute("n");
+    if (n === null || parseInt(n, 10) !== measureNumber) continue;
+    return (
+      m.getAttribute("xml:id") ??
+      m.getAttributeNS("http://www.w3.org/XML/1998/namespace", "id") ??
+      m.getAttribute("id")
+    );
+  }
+  return null;
+}
+
 const VerovioScore: React.FC<Props> = ({
   meiData,
   onDrop,
@@ -61,6 +83,7 @@ const VerovioScore: React.FC<Props> = ({
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
   const [measureInput, setMeasureInput] = useState("");
+  const [jumpError, setJumpError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
@@ -548,13 +571,26 @@ const VerovioScore: React.FC<Props> = ({
     e.preventDefault();
     const tk = verovioToolkitRef.current;
     if (!tk || !measureInput) return;
-    // Verovio expects measure IDs like "m1", "m2", etc.
-    const measureId = `m${measureInput}`;
+
+    const measureNumber = parseInt(measureInput, 10);
+    if (!Number.isFinite(measureNumber) || measureNumber < 1) {
+      setJumpError("Enter a valid measure number.");
+      return;
+    }
+
+    const mei = typeof tk.getMEI === "function" ? tk.getMEI() : meiData;
+    const measureId = findMeasureXmlIdByNumber(mei, measureNumber);
+    if (!measureId) {
+      setJumpError("Measure not found.");
+      return;
+    }
+
     const targetPage = tk.getPageWithElement(measureId);
     if (targetPage > 0) {
+      setJumpError("");
       setPage(targetPage);
     } else {
-      setError("Measure not found.");
+      setJumpError("Measure not found.");
     }
   };
 
@@ -633,13 +669,21 @@ const VerovioScore: React.FC<Props> = ({
               type="number"
               min={1}
               value={measureInput}
-              onChange={(e) => setMeasureInput(e.target.value)}
+              onChange={(e) => {
+                setMeasureInput(e.target.value);
+                setJumpError("");
+              }}
               style={{ width: "4em" }}
             />
           </label>
           <button type="submit" style={{ marginLeft: "0.5em" }}>
             Go
           </button>
+          {jumpError ? (
+            <span style={{ color: "red", marginLeft: "0.75em" }}>
+              {jumpError}
+            </span>
+          ) : null}
         </form>
       </div>
       <div
