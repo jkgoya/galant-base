@@ -1,7 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { options as authOptions } from "../../auth/[...nextauth]";
-import { getPieceGschemaAnnotations } from "../../../../lib/gschema-annotations";
+import {
+  AnnotationDeleteError,
+  deleteGschemaPieceAnnotation,
+  getPieceGschemaAnnotations,
+} from "../../../../lib/gschema-annotations";
 import prisma from "../../../../lib/prisma";
 
 export default async function handler(
@@ -88,6 +92,33 @@ export default async function handler(
       return res
         .status(500)
         .json({ error: "Failed to create Gschema annotations" });
+    }
+  } else if (req.method === "DELETE") {
+    const session = await getServerSession(req, res, authOptions);
+
+    if (!session?.user?.email) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { gschemaPieceId } = req.body;
+
+    if (!gschemaPieceId || typeof gschemaPieceId !== "string") {
+      return res.status(400).json({ error: "Missing gschemaPieceId" });
+    }
+
+    try {
+      await deleteGschemaPieceAnnotation(
+        String(id),
+        gschemaPieceId,
+        session.user.email
+      );
+      return res.status(204).end();
+    } catch (error) {
+      if (error instanceof AnnotationDeleteError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      console.error("Error deleting annotation:", error);
+      return res.status(500).json({ error: "Failed to delete annotation" });
     }
   }
 

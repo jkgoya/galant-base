@@ -72,8 +72,17 @@ export default function Piece({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingAnnotationId, setDeletingAnnotationId] = useState<
+    string | null
+  >(null);
   const [existingAnnotations, setExistingAnnotations] =
     useState<GschemaAnnotationSchema[]>(initialAnnotations);
+
+  const canDeleteAnnotation = (schema: GschemaAnnotationSchema) => {
+    if (!session?.user?.email) return false;
+    if ((session.user as { isAdmin?: boolean }).isAdmin) return true;
+    return schema.contributorEmail === session.user.email;
+  };
 
   useEffect(() => {
     setPiece(initialPiece);
@@ -113,6 +122,47 @@ export default function Piece({
       fetchAnnotations();
     }
   }, [id]);
+
+  const handleDeleteAnnotation = async (gschemaPieceId: string) => {
+    if (!session?.user?.email) {
+      router.push("/api/auth/signin");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Delete this annotation? This removes all marked events for this schema on this piece."
+      )
+    ) {
+      return;
+    }
+
+    setDeletingAnnotationId(gschemaPieceId);
+    try {
+      const response = await fetch(`/api/pieces/${id}/gschema-annotations`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ gschemaPieceId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete annotation");
+      }
+
+      setExistingAnnotations((prev) =>
+        prev.filter((schema) => schema.gschemaPieceId !== gschemaPieceId)
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete annotation"
+      );
+    } finally {
+      setDeletingAnnotationId(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!session?.user?.email) {
@@ -296,17 +346,35 @@ export default function Piece({
                 <div className="space-y-6">
                   {existingAnnotations.map((schema) => (
                     <div
-                      key={schema.schemaId}
+                      key={schema.gschemaPieceId}
                       className="bg-gray-50 rounded-lg p-6"
                     >
-                      <div className="mb-4">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                          {schema.schemaName}
-                        </h4>
-                        {schema.contributor && (
-                          <p className="text-sm text-gray-600">
-                            by {schema.contributor}
-                          </p>
+                      <div className="mb-4 flex justify-between items-start gap-4">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900 mb-1">
+                            {schema.schemaName}
+                          </h4>
+                          {schema.contributor && (
+                            <p className="text-sm text-gray-600">
+                              by {schema.contributor}
+                            </p>
+                          )}
+                        </div>
+                        {canDeleteAnnotation(schema) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteAnnotation(schema.gschemaPieceId)
+                            }
+                            disabled={
+                              deletingAnnotationId === schema.gschemaPieceId
+                            }
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 shrink-0"
+                          >
+                            {deletingAnnotationId === schema.gschemaPieceId
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
                         )}
                       </div>
 
