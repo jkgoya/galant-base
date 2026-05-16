@@ -45,6 +45,30 @@ type TemporaryAnnotation = {
   value: string;
 };
 
+type ExistingAnnotationSchema = {
+  schemaId: string;
+  schemaName: string;
+  eventCount: number;
+  schemaType: string;
+  contributor: string;
+  measureStart?: number;
+  measureEnd?: number;
+  events: Array<{
+    id: string;
+    gschemaId: string | null;
+    index: number;
+    type: string;
+    value: string;
+  }>;
+  annotations: Array<{
+    id: string;
+    gschema_event_id: string;
+    noteId: string;
+    type: string;
+    value: string;
+  }>;
+};
+
 export default function AnnotatePiece() {
   const router = useRouter();
   const { id } = router.query;
@@ -64,6 +88,10 @@ export default function AnnotatePiece() {
   const [temporaryAnnotations, setTemporaryAnnotations] = useState<
     TemporaryAnnotation[]
   >([]);
+  const [existingAnnotations, setExistingAnnotations] = useState<
+    ExistingAnnotationSchema[]
+  >([]);
+  const [showExistingAnnotations, setShowExistingAnnotations] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -101,9 +129,22 @@ export default function AnnotatePiece() {
       }
     };
 
+    const fetchAnnotations = async () => {
+      try {
+        const response = await fetch(`/api/pieces/${id}/gschema-annotations`);
+        if (response.ok) {
+          const data = await response.json();
+          setExistingAnnotations(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch annotations:", err);
+      }
+    };
+
     if (id) {
       fetchPiece();
       fetchSchemas();
+      fetchAnnotations();
     }
   }, [id, session, status, router]);
 
@@ -235,6 +276,13 @@ export default function AnnotatePiece() {
 
       // Clear temporary annotations after successful submission
       setTemporaryAnnotations([]);
+
+      const annotationsResponse = await fetch(
+        `/api/pieces/${id}/gschema-annotations`
+      );
+      if (annotationsResponse.ok) {
+        setExistingAnnotations(await annotationsResponse.json());
+      }
     } catch (err) {
       console.error("Error submitting annotations:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -316,13 +364,27 @@ export default function AnnotatePiece() {
             className="bg-white shadow rounded-lg p-6"
             style={{ flexGrow: 1 }}
           >
-            <h2 className="text-xl font-semibold mb-4">Score</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Score</h2>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showExistingAnnotations}
+                  onChange={(e) => setShowExistingAnnotations(e.target.checked)}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                Show existing annotations
+              </label>
+            </div>
             <div className="border rounded-lg p-4">
               <VerovioScore
                 meiData={piece.meiData}
                 onDrop={handleDrop}
                 onClick={handleDrop}
                 temporaryAnnotations={temporaryAnnotations}
+                existingAnnotations={
+                  showExistingAnnotations ? existingAnnotations : []
+                }
                 onRemoveAnnotation={(id) => {
                   removeTemporaryAnnotation(id);
                 }}
