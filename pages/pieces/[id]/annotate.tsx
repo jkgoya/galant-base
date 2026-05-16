@@ -45,6 +45,30 @@ type TemporaryAnnotation = {
   value: string;
 };
 
+type ExistingAnnotationSchema = {
+  schemaId: string;
+  schemaName: string;
+  eventCount: number;
+  schemaType: string;
+  contributor: string;
+  measureStart?: number;
+  measureEnd?: number;
+  events: Array<{
+    id: string;
+    gschemaId: string | null;
+    index: number;
+    type: string;
+    value: string;
+  }>;
+  annotations: Array<{
+    id: string;
+    gschema_event_id: string;
+    noteId: string;
+    type: string;
+    value: string;
+  }>;
+};
+
 export default function AnnotatePiece() {
   const router = useRouter();
   const { id } = router.query;
@@ -64,6 +88,10 @@ export default function AnnotatePiece() {
   const [temporaryAnnotations, setTemporaryAnnotations] = useState<
     TemporaryAnnotation[]
   >([]);
+  const [existingAnnotations, setExistingAnnotations] = useState<
+    ExistingAnnotationSchema[]
+  >([]);
+  const [showExistingAnnotations, setShowExistingAnnotations] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -111,7 +139,7 @@ export default function AnnotatePiece() {
     e: React.DragEvent,
     gschema_event_id: string,
     type: string,
-    value: string
+    value: string,
   ) => {
     const dragData = { gschema_event_id, type, value };
     setSelectedEvent(dragData);
@@ -122,7 +150,7 @@ export default function AnnotatePiece() {
     e: React.TouchEvent,
     gschema_event_id: string,
     type: string,
-    value: string
+    value: string,
   ) => {
     e.preventDefault();
     const dragData = { gschema_event_id, type, value };
@@ -133,7 +161,7 @@ export default function AnnotatePiece() {
   const handleSchemaEventClick = (
     gschema_event_id: string,
     type: string,
-    value: string
+    value: string,
   ) => {
     // If this event is already in temporary annotations, remove it
     if (isEventInTemporaryAnnotations(gschema_event_id)) {
@@ -177,13 +205,13 @@ export default function AnnotatePiece() {
 
   const removeTemporaryAnnotationByEventId = (gschema_event_id: string) => {
     setTemporaryAnnotations((prev) =>
-      prev.filter((ann) => ann.gschema_event_id !== gschema_event_id)
+      prev.filter((ann) => ann.gschema_event_id !== gschema_event_id),
     );
   };
 
   const isEventInTemporaryAnnotations = (gschema_event_id: string) => {
     return temporaryAnnotations.some(
-      (ann) => ann.gschema_event_id === gschema_event_id
+      (ann) => ann.gschema_event_id === gschema_event_id,
     );
   };
 
@@ -208,7 +236,7 @@ export default function AnnotatePiece() {
             eventId: event,
             noteId: annotation.noteId,
           };
-        })
+        }),
       );
 
       const response = await fetch(`/api/pieces/${id}/gschema-annotations`, {
@@ -229,7 +257,7 @@ export default function AnnotatePiece() {
         throw new Error(
           `Failed to create Gschema annotations: ${
             errorData.error || response.statusText
-          }`
+          }`,
         );
       }
 
@@ -316,13 +344,27 @@ export default function AnnotatePiece() {
             className="bg-white shadow rounded-lg p-6"
             style={{ flexGrow: 1 }}
           >
-            <h2 className="text-xl font-semibold mb-4">Score</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Score</h2>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showExistingAnnotations}
+                  onChange={(e) => setShowExistingAnnotations(e.target.checked)}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                Show existing annotations
+              </label>
+            </div>
             <div className="border rounded-lg p-4">
               <VerovioScore
                 meiData={piece.meiData}
                 onDrop={handleDrop}
                 onClick={handleDrop}
                 temporaryAnnotations={temporaryAnnotations}
+                existingAnnotations={
+                  showExistingAnnotations ? existingAnnotations : []
+                }
                 onRemoveAnnotation={(id) => {
                   removeTemporaryAnnotation(id);
                 }}
@@ -383,7 +425,7 @@ export default function AnnotatePiece() {
                             >
                               Event {idx + 1}
                             </th>
-                          )
+                          ),
                         )}
                       </tr>
                     </thead>
@@ -414,20 +456,20 @@ export default function AnnotatePiece() {
                                     <div
                                       draggable={
                                         !isEventInTemporaryAnnotations(
-                                          eventTableid[type][idx]
+                                          eventTableid[type][idx],
                                         )
                                       }
                                       onDragStart={(e) => {
                                         if (
                                           !isEventInTemporaryAnnotations(
-                                            eventTableid[type][idx]
+                                            eventTableid[type][idx],
                                           )
                                         ) {
                                           handleDragStart(
                                             e,
                                             eventTableid[type][idx],
                                             type,
-                                            eventTable[type][idx]
+                                            eventTable[type][idx],
                                           );
                                         }
                                       }}
@@ -435,7 +477,7 @@ export default function AnnotatePiece() {
                                         handleSchemaEventClick(
                                           eventTableid[type][idx],
                                           type,
-                                          eventTable[type][idx]
+                                          eventTable[type][idx],
                                         );
                                       }}
                                       style={{
@@ -451,17 +493,17 @@ export default function AnnotatePiece() {
                                         color:
                                           type === "bass" ? "black" : "white",
                                         border: isEventInTemporaryAnnotations(
-                                          eventTableid[type][idx]
+                                          eventTableid[type][idx],
                                         )
                                           ? "2px solid #ccc"
                                           : selectedEvent?.gschema_event_id ===
-                                            eventTableid[type][idx]
-                                          ? "2px solid #3b82f6"
-                                          : "1px solid #ccc",
+                                              eventTableid[type][idx]
+                                            ? "2px solid #3b82f6"
+                                            : "1px solid #ccc",
                                         fontSize: "0.9rem",
                                         fontWeight: "bold",
                                         cursor: isEventInTemporaryAnnotations(
-                                          eventTableid[type][idx]
+                                          eventTableid[type][idx],
                                         )
                                           ? "pointer"
                                           : "pointer",
@@ -470,7 +512,7 @@ export default function AnnotatePiece() {
                                         WebkitUserSelect: "none",
                                         WebkitTouchCallout: "none",
                                         opacity: isEventInTemporaryAnnotations(
-                                          eventTableid[type][idx]
+                                          eventTableid[type][idx],
                                         )
                                           ? 0.4
                                           : 1,
@@ -486,13 +528,13 @@ export default function AnnotatePiece() {
                                         handleSchemaEventClick(
                                           eventTableid[type][idx],
                                           type,
-                                          eventTable[type][idx]
+                                          eventTable[type][idx],
                                         );
                                       }}
                                       style={{
                                         cursor: "pointer",
                                         opacity: isEventInTemporaryAnnotations(
-                                          eventTableid[type][idx]
+                                          eventTableid[type][idx],
                                         )
                                           ? 0.4
                                           : 1,
@@ -515,10 +557,10 @@ export default function AnnotatePiece() {
                                     </div>
                                   )}
                                 </td>
-                              )
+                              ),
                             )}
                           </tr>
-                        )
+                        ),
                       )}
                     </tbody>
                   </table>
