@@ -87,7 +87,7 @@ export default function Piece({
   useEffect(() => {
     setPiece(initialPiece);
     setExistingAnnotations(initialAnnotations);
-  }, [initialPiece, initialAnnotations]);
+  }, [id, initialPiece, initialAnnotations]);
 
   useEffect(() => {
     const fetchPiece = async () => {
@@ -326,9 +326,6 @@ export default function Piece({
           <div className="border-t border-gray-200">
             <div className="verovio-container">
               <VerovioScore
-                key={existingAnnotations
-                  .map((schema) => schema.gschemaPieceId)
-                  .join(",")}
                 meiData={piece.meiData}
                 existingAnnotations={existingAnnotations}
               />
