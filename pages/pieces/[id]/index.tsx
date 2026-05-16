@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import Layout from "../../../components/Layout";
+import AnnotationSetsList from "../../../components/AnnotationSetsList";
 import prisma from "../../../lib/prisma";
+import type { GschemaAnnotationSchema } from "../../../lib/gschema-annotations";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
@@ -53,31 +55,18 @@ export default function Piece() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingAnnotationId, setDeletingAnnotationId] = useState<
+    string | null
+  >(null);
   const [existingAnnotations, setExistingAnnotations] = useState<
-    Array<{
-      schemaId: string;
-      schemaName: string;
-      eventCount: number;
-      schemaType: string;
-      contributor: string;
-      measureStart?: number;
-      measureEnd?: number;
-      events: Array<{
-        id: string;
-        gschemaId: string | null;
-        index: number;
-        type: string;
-        value: string;
-      }>;
-      annotations: Array<{
-        id: string;
-        gschema_event_id: string;
-        noteId: string;
-        type: string;
-        value: string;
-      }>;
-    }>
+    GschemaAnnotationSchema[]
   >([]);
+
+  const canDeleteAnnotation = (schema: GschemaAnnotationSchema) => {
+    if (!session?.user?.email) return false;
+    if ((session.user as { isAdmin?: boolean }).isAdmin) return true;
+    return schema.contributorEmail === session.user.email;
+  };
 
   useEffect(() => {
     const fetchPiece = async () => {
@@ -112,6 +101,47 @@ export default function Piece() {
       fetchAnnotations();
     }
   }, [id]);
+
+  const handleDeleteAnnotation = async (gschemaPieceId: string) => {
+    if (!session?.user?.email) {
+      router.push("/api/auth/signin");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Delete this annotation? This removes all marked events for this schema on this piece."
+      )
+    ) {
+      return;
+    }
+
+    setDeletingAnnotationId(gschemaPieceId);
+    try {
+      const response = await fetch(`/api/pieces/${id}/gschema-annotations`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ gschemaPieceId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete annotation");
+      }
+
+      setExistingAnnotations((prev) =>
+        prev.filter((schema) => schema.gschemaPieceId !== gschemaPieceId)
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete annotation"
+      );
+    } finally {
+      setDeletingAnnotationId(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!session?.user?.email) {
@@ -292,113 +322,12 @@ export default function Piece() {
             </div>
             <div className="border-t border-gray-200">
               <div className="px-4 py-5 sm:px-6">
-                <div className="space-y-6">
-                  {existingAnnotations.map((schema) => (
-                    <div
-                      key={schema.schemaId}
-                      className="bg-gray-50 rounded-lg p-6"
-                    >
-                      <div className="mb-4">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                          {schema.schemaName}
-                        </h4>
-                        {schema.contributor && (
-                          <p className="text-sm text-gray-600">
-                            by {schema.contributor}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Schema Table */}
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full border-collapse text-sm">
-                          <thead>
-                            <tr>
-                              <th className="text-left p-2 border-b border-gray-300">
-                                Type
-                              </th>
-                              {Array.from(
-                                { length: schema.eventCount },
-                                (_, idx) => (
-                                  <th
-                                    key={idx}
-                                    className="p-2 w-12 text-center border-b border-gray-300"
-                                  >
-                                    Event {idx + 1}
-                                  </th>
-                                )
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {[
-                              "melody",
-                              "bass",
-                              "meter",
-                              "figures",
-                              "roman",
-                            ].map((type) => (
-                              <tr key={type}>
-                                <td className="font-semibold text-gray-700 p-2 border-b border-gray-200 capitalize">
-                                  {type}
-                                </td>
-                                {Array.from(
-                                  { length: schema.eventCount },
-                                  (_, idx) => {
-                                    const event = schema.events.find(
-                                      (ev) =>
-                                        ev.type === type && ev.index === idx
-                                    );
-                                    const isAnnotated = schema.annotations.some(
-                                      (ann) =>
-                                        ann.gschema_event_id === event?.id
-                                    );
-
-                                    return (
-                                      <td
-                                        key={idx}
-                                        className={`p-2 text-center border-b border-gray-200 ${
-                                          isAnnotated ? "bg-blue-50" : ""
-                                        }`}
-                                      >
-                                        {type === "bass" ||
-                                        type === "melody" ? (
-                                          <div
-                                            className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm font-bold border ${
-                                              type === "bass"
-                                                ? "bg-white text-black border-gray-400"
-                                                : "bg-black text-white border-gray-400"
-                                            } ${
-                                              isAnnotated
-                                                ? "border-blue-500"
-                                                : ""
-                                            }`}
-                                          >
-                                            {event?.value || ""}
-                                          </div>
-                                        ) : (
-                                          <span
-                                            className={`${
-                                              isAnnotated
-                                                ? "text-blue-800 font-bold"
-                                                : "text-gray-700"
-                                            }`}
-                                          >
-                                            {event?.value || ""}
-                                          </span>
-                                        )}
-                                      </td>
-                                    );
-                                  }
-                                )}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AnnotationSetsList
+                  annotations={existingAnnotations}
+                  canDelete={canDeleteAnnotation}
+                  onDelete={handleDeleteAnnotation}
+                  deletingId={deletingAnnotationId}
+                />
               </div>
             </div>
           </div>

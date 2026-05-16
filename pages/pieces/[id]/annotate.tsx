@@ -2,6 +2,8 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Layout from "../../../components/Layout";
+import AnnotationSetsList from "../../../components/AnnotationSetsList";
+import type { GschemaAnnotationSchema } from "../../../lib/gschema-annotations";
 import dynamic from "next/dynamic";
 
 const VerovioScore = dynamic(() => import("../../../components/VerovioScore"), {
@@ -45,31 +47,7 @@ type TemporaryAnnotation = {
   value: string;
 };
 
-type ExistingAnnotationSchema = {
-  schemaId: string;
-  schemaName: string;
-  eventCount: number;
-  schemaType: string;
-  contributor: string;
-  measureStart?: number;
-  measureEnd?: number;
-  events: Array<{
-    id: string;
-    gschemaId: string | null;
-    index: number;
-    type: string;
-    value: string;
-  }>;
-  annotations: Array<{
-    id: string;
-    gschema_event_id: string;
-    noteId: string;
-    type: string;
-    value: string;
-  }>;
-};
-
-const NO_EXISTING_ANNOTATIONS: ExistingAnnotationSchema[] = [];
+const NO_EXISTING_ANNOTATIONS: GschemaAnnotationSchema[] = [];
 
 export default function AnnotatePiece() {
   const router = useRouter();
@@ -91,9 +69,30 @@ export default function AnnotatePiece() {
     TemporaryAnnotation[]
   >([]);
   const [existingAnnotations, setExistingAnnotations] = useState<
-    ExistingAnnotationSchema[]
+    GschemaAnnotationSchema[]
   >([]);
-  const [showExistingAnnotations, setShowExistingAnnotations] = useState(false);
+  const [showExistingAnnotations, setShowExistingAnnotations] = useState(true);
+  const [deletingAnnotationId, setDeletingAnnotationId] = useState<
+    string | null
+  >(null);
+
+  const canDeleteAnnotation = (schema: GschemaAnnotationSchema) => {
+    if (!session?.user?.email) return false;
+    if ((session.user as { isAdmin?: boolean }).isAdmin) return true;
+    return schema.contributorEmail === session.user.email;
+  };
+
+  const refreshExistingAnnotations = async () => {
+    if (!id) return;
+    try {
+      const response = await fetch(`/api/pieces/${id}/gschema-annotations`);
+      if (response.ok) {
+        setExistingAnnotations(await response.json());
+      }
+    } catch (err) {
+      console.error("Failed to fetch annotations:", err);
+    }
+  };
 
   useEffect(() => {
     if (status === "loading") return;
@@ -118,18 +117,6 @@ export default function AnnotatePiece() {
       }
     };
 
-    const fetchAnnotations = async () => {
-      try {
-        const response = await fetch(`/api/pieces/${id}/gschema-annotations`);
-        if (response.ok) {
-          const data = await response.json();
-          setExistingAnnotations(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch annotations:", err);
-      }
-    };
-
     const fetchSchemas = async () => {
       try {
         const response = await fetch("/api/schemata");
@@ -146,7 +133,7 @@ export default function AnnotatePiece() {
     if (id) {
       fetchPiece();
       fetchSchemas();
-      fetchAnnotations();
+      refreshExistingAnnotations();
     }
   }, [id, session, status, router]);
 
@@ -230,6 +217,46 @@ export default function AnnotatePiece() {
     );
   };
 
+  const handleDeleteAnnotation = async (gschemaPieceId: string) => {
+    if (!session?.user?.email) {
+      router.push("/api/auth/signin");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Delete this annotation? This removes all marked events for this schema on this piece."
+      )
+    ) {
+      return;
+    }
+
+    setDeletingAnnotationId(gschemaPieceId);
+    try {
+      const response = await fetch(`/api/pieces/${id}/gschema-annotations`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ gschemaPieceId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete annotation");
+      }
+
+      setExistingAnnotations((prev) =>
+        prev.filter((schema) => schema.gschemaPieceId !== gschemaPieceId)
+      );
+    } catch (err) {
+      console.error("Error deleting annotation:", err);
+      setError(err instanceof Error ? err.message : "Failed to delete annotation");
+    } finally {
+      setDeletingAnnotationId(null);
+    }
+  };
+
   const submitTemporaryAnnotations = async () => {
     if (temporaryAnnotations.length === 0 || !selectedSchema) {
       setError("No annotations to submit or no schema selected");
@@ -276,8 +303,9 @@ export default function AnnotatePiece() {
         );
       }
 
-      // Clear temporary annotations after successful submission
       setTemporaryAnnotations([]);
+      await refreshExistingAnnotations();
+      setShowExistingAnnotations(true);
     } catch (err) {
       console.error("Error submitting annotations:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -583,6 +611,17 @@ export default function AnnotatePiece() {
                   </table>
                 </div>
               )}
+            </div>
+            <div className="mt-8">
+              <div className="bg-white shadow rounded-lg p-6">
+                <h2 className="text-xl font-semibold mb-4">Saved Annotations</h2>
+                <AnnotationSetsList
+                  annotations={existingAnnotations}
+                  canDelete={canDeleteAnnotation}
+                  onDelete={handleDeleteAnnotation}
+                  deletingId={deletingAnnotationId}
+                />
+              </div>
             </div>
             {/* Pending Annotations Section */}
             <div className="mt-8">
