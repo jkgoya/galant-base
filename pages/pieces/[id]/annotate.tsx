@@ -69,6 +69,8 @@ type ExistingAnnotationSchema = {
   }>;
 };
 
+const NO_EXISTING_ANNOTATIONS: ExistingAnnotationSchema[] = [];
+
 export default function AnnotatePiece() {
   const router = useRouter();
   const { id } = router.query;
@@ -376,7 +378,9 @@ export default function AnnotatePiece() {
                 onClick={handleDrop}
                 temporaryAnnotations={temporaryAnnotations}
                 existingAnnotations={
-                  showExistingAnnotations ? existingAnnotations : []
+                  showExistingAnnotations
+                    ? existingAnnotations
+                    : NO_EXISTING_ANNOTATIONS
                 }
                 onRemoveAnnotation={(id) => {
                   removeTemporaryAnnotation(id);
