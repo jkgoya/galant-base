@@ -1,4 +1,11 @@
-import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 
 type Props = {
   meiData: string;
@@ -63,6 +70,14 @@ const VerovioScore: React.FC<Props> = ({
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const baseSvgRef = useRef<string>("");
+  const existingAnnotationCount = useMemo(
+    () =>
+      existingAnnotations.reduce(
+        (count, schema) => count + schema.annotations.length,
+        0
+      ),
+    [existingAnnotations]
+  );
   const [notePositions, setNotePositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map());
@@ -149,205 +164,213 @@ const VerovioScore: React.FC<Props> = ({
     initializeScore();
   }, [meiData, verovioReady]);
 
-  // Render the current page and apply selection/annotation overlays
+  const findNoteElement = (noteId: string) => {
+    const container = containerRef.current;
+    if (!container || !noteId) return null;
+    return (
+      container.querySelector(`#${CSS.escape(noteId)}`) ??
+      document.getElementById(noteId)
+    );
+  };
+
+  const applyScoreOverlay = useCallback(
+    (rawSvg: string) => {
+      const parser = new DOMParser();
+      const svgDoc = parser.parseFromString(rawSvg, "image/svg+xml");
+
+      const scoreContainer = containerRef.current
+        ?.firstElementChild as HTMLElement | null;
+      if (scoreContainer) {
+        scoreContainer.innerHTML = rawSvg;
+      }
+
+      const commitSvg = () => {
+        const serializer = new XMLSerializer();
+        setSvg(serializer.serializeToString(svgDoc));
+      };
+
+      svgDoc.querySelectorAll(".selected").forEach((el) => {
+        el.classList.remove("selected");
+      });
+
+      const idToHighlight = dragTargetId ? dragTargetId : selectedId;
+      if (idToHighlight) {
+        const element = svgDoc.getElementById(idToHighlight);
+        if (element) {
+          element.classList.add("selected");
+        }
+      }
+
+      svgDoc.querySelectorAll(".annotation-markers").forEach((el) => {
+        el.remove();
+      });
+
+      const allAnnotations = [
+        ...temporaryAnnotations.map((ann) => ({ ...ann, isTemporary: true })),
+        ...existingAnnotations.flatMap((schema) =>
+          schema.annotations.map((ann) => ({ ...ann, isTemporary: false }))
+        ),
+      ];
+
+      if (allAnnotations.length > 0) {
+        const svgElement = svgDoc.documentElement;
+        const markerGroup = svgDoc.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g"
+        );
+        markerGroup.setAttribute("class", "annotation-markers");
+
+        const circleSize = 20;
+        const svgRect = containerRef.current
+          ?.querySelector("svg")
+          ?.getBoundingClientRect();
+        if (!svgRect) {
+          console.warn("SVG element not found");
+          commitSvg();
+          return;
+        }
+
+        const schemaGroups = existingAnnotations.map((schema) => ({
+          schemaName: schema.schemaName,
+          annotations: schema.annotations.map((ann) => ({
+            ...ann,
+            isTemporary: false,
+          })),
+        }));
+
+        if (temporaryAnnotations.length > 0) {
+          schemaGroups.push({
+            schemaName: "Temporary",
+            annotations: temporaryAnnotations.map((ann) => ({
+              ...ann,
+              isTemporary: true,
+            })),
+          });
+        }
+
+        schemaGroups.forEach((group) => {
+          let lowestY = -Infinity;
+          let minX = Infinity;
+          let maxX = -Infinity;
+          const groupMarkers: SVGElement[] = [];
+
+          group.annotations.forEach((annotation) => {
+            const isMelody = annotation.type === "melody";
+            const note = findNoteElement(annotation.noteId);
+            if (!note) {
+              console.warn("Note element not found:", annotation.noteId);
+              return;
+            }
+
+            const rect = note.getBoundingClientRect();
+            const x = rect.left - svgRect.left + rect.width / 2;
+            const y =
+              rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30);
+
+            lowestY = Math.max(lowestY, y);
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+
+            const circle = svgDoc.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "circle"
+            );
+            circle.setAttribute("cx", String(x));
+            circle.setAttribute("cy", String(y));
+            circle.setAttribute("r", String(circleSize / 2));
+            circle.setAttribute("fill", isMelody ? "black" : "white");
+            circle.setAttribute(
+              "stroke",
+              annotation.isTemporary ? "red" : "blue"
+            );
+            circle.setAttribute(
+              "stroke-width",
+              annotation.isTemporary ? "2" : "1"
+            );
+            circle.classList.add("annotation-circle");
+            circle.setAttribute("data-id", annotation.id);
+            circle.setAttribute(
+              "data-temporary",
+              String(annotation.isTemporary)
+            );
+            circle.style.cursor = annotation.isTemporary
+              ? "pointer"
+              : "default";
+
+            const text = svgDoc.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "text"
+            );
+            text.setAttribute("x", String(x));
+            text.setAttribute("y", String(y));
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("dominant-baseline", "middle");
+            text.setAttribute("fill", isMelody ? "white" : "black");
+            text.setAttribute("font-size", "12");
+            text.setAttribute("font-weight", "bold");
+            text.textContent = annotation.value;
+            text.classList.add("annotation-text");
+
+            groupMarkers.push(circle, text);
+          });
+
+          if (groupMarkers.length > 0 && group.schemaName !== "Temporary") {
+            const schemaText = svgDoc.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "text"
+            );
+            const centerX = (minX + maxX) / 2;
+            schemaText.setAttribute("x", String(centerX));
+            schemaText.setAttribute("y", String(lowestY + 25));
+            schemaText.setAttribute("text-anchor", "middle");
+            schemaText.setAttribute("fill", "#6b7280");
+            schemaText.setAttribute("font-size", "14");
+            schemaText.setAttribute("font-weight", "bold");
+            schemaText.textContent = group.schemaName;
+            schemaText.classList.add("schema-label");
+            groupMarkers.push(schemaText);
+          }
+
+          groupMarkers.forEach((marker) => markerGroup.appendChild(marker));
+        });
+
+        svgElement.appendChild(markerGroup);
+      }
+
+      commitSvg();
+    },
+    [
+      dragTargetId,
+      existingAnnotations,
+      selectedId,
+      temporaryAnnotations,
+    ]
+  );
+
+  // Render the current page from Verovio
   useLayoutEffect(() => {
     const tk = verovioToolkitRef.current;
     if (!tk || !scoreReady) return;
 
-    let rawSvg: string;
     try {
-      rawSvg = tk.renderToSVG(page, {});
+      const rawSvg = tk.renderToSVG(page, {});
       baseSvgRef.current = rawSvg;
+      applyScoreOverlay(rawSvg);
     } catch (err) {
       setError("Failed to render page.");
       baseSvgRef.current = "";
       setSvg("");
-      return;
     }
+  }, [page, scoreReady, applyScoreOverlay]);
 
-    const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(rawSvg, "image/svg+xml");
-
-    // Mount the raw page in the DOM so note positions can be measured
-    const scoreContainer = containerRef.current
-      ?.firstElementChild as HTMLElement | null;
-    if (scoreContainer) {
-      scoreContainer.innerHTML = rawSvg;
-    }
-
-    const commitSvg = () => {
-      const serializer = new XMLSerializer();
-      setSvg(serializer.serializeToString(svgDoc));
-    };
-
-    // Remove all existing selected classes
-    svgDoc.querySelectorAll(".selected").forEach((el) => {
-      el.classList.remove("selected");
-    });
-
-    // Add selected class to elements with matching IDs
-    const idToHighlight = dragTargetId ? dragTargetId : selectedId;
-    const element = svgDoc.getElementById(idToHighlight);
-    if (element) {
-      element.classList.add("selected");
-    }
-
-    // Remove all existing annotation markers
-    svgDoc.querySelectorAll(".annotation-markers").forEach((el) => {
-      el.remove();
-    });
-
-    // Combine temporary and existing annotations
-    const allAnnotations = [
-      ...temporaryAnnotations.map((ann) => ({ ...ann, isTemporary: true })),
-      ...existingAnnotations.flatMap((schema) =>
-        schema.annotations.map((ann) => ({ ...ann, isTemporary: false }))
-      ),
-    ];
-
-    // Add annotation markers
-    if (allAnnotations.length > 0) {
-      const svgElement = svgDoc.documentElement;
-      const markerGroup = svgDoc.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "g"
-      );
-      markerGroup.setAttribute("class", "annotation-markers");
-
-      const circleSize = 20;
-      const svgRect = containerRef.current
-        ?.querySelector("svg")
-        ?.getBoundingClientRect();
-      if (!svgRect) {
-        console.warn("SVG element not found");
-        commitSvg();
-        return;
-      }
-
-      // Group annotations by schema
-      const schemaGroups = existingAnnotations.map((schema) => ({
-        schemaName: schema.schemaName,
-        annotations: schema.annotations.map((ann) => ({
-          ...ann,
-          isTemporary: false,
-        })),
-      }));
-
-      // Add temporary annotations as their own group
-      if (temporaryAnnotations.length > 0) {
-        schemaGroups.push({
-          schemaName: "Temporary",
-          annotations: temporaryAnnotations.map((ann) => ({
-            ...ann,
-            isTemporary: true,
-          })),
-        });
-      }
-
-      schemaGroups.forEach((group, groupIndex) => {
-        let lowestY = -Infinity;
-        let minX = Infinity;
-        let maxX = -Infinity;
-        const groupMarkers: SVGElement[] = [];
-
-        group.annotations.forEach((annotation) => {
-          const isMelody = annotation.type === "melody";
-
-          // Get the actual DOM element instead of the parsed SVG element
-          const note = containerRef.current?.querySelector(
-            `#${annotation.noteId}`
-          );
-          if (!note) {
-            console.warn("Note element not found:", annotation.noteId);
-            return;
-          }
-
-          const rect = note.getBoundingClientRect();
-
-          const x = rect.left - svgRect.left + rect.width / 2;
-          const y =
-            rect.top - svgRect.top + rect.height / 2 + (isMelody ? -30 : 30);
-
-          // Track the lowest Y position and X range for this group
-          lowestY = Math.max(lowestY, y);
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-
-          // Create circle
-          const circle = svgDoc.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "circle"
-          );
-          circle.setAttribute("cx", String(x));
-          circle.setAttribute("cy", String(y));
-          circle.setAttribute("r", String(circleSize / 2));
-          circle.setAttribute("fill", isMelody ? "black" : "white");
-          circle.setAttribute(
-            "stroke",
-            annotation.isTemporary ? "red" : "blue"
-          );
-          circle.setAttribute(
-            "stroke-width",
-            annotation.isTemporary ? "2" : "1"
-          );
-          circle.classList.add("annotation-circle");
-          circle.setAttribute("data-id", annotation.id);
-          circle.setAttribute("data-temporary", String(annotation.isTemporary));
-          circle.style.cursor = annotation.isTemporary ? "pointer" : "default";
-
-          // Create text
-          const text = svgDoc.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          text.setAttribute("x", String(x));
-          text.setAttribute("y", String(y));
-          text.setAttribute("text-anchor", "middle");
-          text.setAttribute("dominant-baseline", "middle");
-          text.setAttribute("fill", isMelody ? "white" : "black");
-          text.setAttribute("font-size", "12");
-          text.setAttribute("font-weight", "bold");
-          text.textContent = annotation.value;
-          text.classList.add("annotation-text");
-
-          groupMarkers.push(circle, text);
-        });
-
-        // Add schema name below the lowest marker in this group
-        if (groupMarkers.length > 0 && group.schemaName !== "Temporary") {
-          const schemaText = svgDoc.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          // Center the schema name horizontally over the annotation group
-          const centerX = (minX + maxX) / 2;
-          schemaText.setAttribute("x", String(centerX));
-          schemaText.setAttribute("y", String(lowestY + 25));
-          schemaText.setAttribute("text-anchor", "middle");
-          schemaText.setAttribute("fill", "#6b7280");
-          schemaText.setAttribute("font-size", "14");
-          schemaText.setAttribute("font-weight", "bold");
-          schemaText.textContent = group.schemaName;
-          schemaText.classList.add("schema-label");
-
-          groupMarkers.push(schemaText);
-        }
-
-        // Add all markers for this group
-        groupMarkers.forEach((marker) => markerGroup.appendChild(marker));
-      });
-
-      svgElement.appendChild(markerGroup);
-    }
-
-    commitSvg();
+  // Re-apply overlays when annotations load or change without a page turn
+  useLayoutEffect(() => {
+    if (!scoreReady || !baseSvgRef.current) return;
+    applyScoreOverlay(baseSvgRef.current);
   }, [
-    page,
     scoreReady,
-    selectedId,
-    dragTargetId,
-    temporaryAnnotations,
-    existingAnnotations,
+    existingAnnotationCount,
+    applyScoreOverlay,
   ]);
 
   // Update note positions when SVG changes

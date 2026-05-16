@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import Layout from "../../../components/Layout";
+import {
+  getPieceGschemaAnnotations,
+  GschemaAnnotationSchema,
+} from "../../../lib/gschema-annotations";
 import prisma from "../../../lib/prisma";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
@@ -11,8 +15,9 @@ const VerovioScore = dynamic(() => import("../../../components/VerovioScore"), {
 });
 
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
+  const id = String(params?.id);
   const piece = await prisma.piece.findUnique({
-    where: { id: String(params?.id) },
+    where: { id },
     include: {
       contributor: {
         select: {
@@ -22,6 +27,12 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
     },
   });
 
+  if (!piece) {
+    return { notFound: true };
+  }
+
+  const existingAnnotations = await getPieceGschemaAnnotations(id);
+
   // Convert Date objects to ISO strings
   const serializedPiece = {
     ...piece,
@@ -29,7 +40,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
     updatedAt: piece.updatedAt.toISOString(),
   };
 
-  return { props: { piece: serializedPiece } };
+  return { props: { piece: serializedPiece, existingAnnotations } };
 };
 
 interface PieceProps {
@@ -45,39 +56,29 @@ interface PieceProps {
   };
 }
 
-export default function Piece() {
+type PageProps = {
+  piece: PieceProps;
+  existingAnnotations: GschemaAnnotationSchema[];
+};
+
+export default function Piece({
+  piece: initialPiece,
+  existingAnnotations: initialAnnotations,
+}: PageProps) {
   const router = useRouter();
   const { id } = router.query;
   const { data: session } = useSession();
-  const [piece, setPiece] = useState<PieceProps | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [piece, setPiece] = useState<PieceProps | null>(initialPiece);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [existingAnnotations, setExistingAnnotations] = useState<
-    Array<{
-      schemaId: string;
-      schemaName: string;
-      eventCount: number;
-      schemaType: string;
-      contributor: string;
-      measureStart?: number;
-      measureEnd?: number;
-      events: Array<{
-        id: string;
-        gschemaId: string | null;
-        index: number;
-        type: string;
-        value: string;
-      }>;
-      annotations: Array<{
-        id: string;
-        gschema_event_id: string;
-        noteId: string;
-        type: string;
-        value: string;
-      }>;
-    }>
-  >([]);
+  const [existingAnnotations, setExistingAnnotations] =
+    useState<GschemaAnnotationSchema[]>(initialAnnotations);
+
+  useEffect(() => {
+    setPiece(initialPiece);
+    setExistingAnnotations(initialAnnotations);
+  }, [initialPiece, initialAnnotations]);
 
   useEffect(() => {
     const fetchPiece = async () => {
@@ -87,7 +88,7 @@ export default function Piece() {
           throw new Error("Failed to fetch piece");
         }
         const data = await response.json();
-        setPiece(data);
+        setPiece((prev) => ({ ...prev, ...data }));
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {

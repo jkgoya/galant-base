@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { options as authOptions } from "../../auth/[...nextauth]";
+import { getPieceGschemaAnnotations } from "../../../../lib/gschema-annotations";
 import prisma from "../../../../lib/prisma";
 
 export default async function handler(
@@ -12,52 +13,7 @@ export default async function handler(
   if (req.method === "GET") {
     // Allow public access for reading annotations
     try {
-      const annotations = await prisma.gschema_Piece.findMany({
-        where: {
-          pieceId: String(id),
-        },
-        include: {
-          gschema: {
-            include: {
-              events: true,
-            },
-          },
-          annotations: {
-            include: {
-              Gschema_event: true,
-            },
-          },
-          contributor: {
-            select: {
-              name: true,
-              email: true,
-            },
-          },
-        },
-      });
-
-      // Transform the data to include complete schema information
-      const transformedData = annotations.map((gschemaPiece) => ({
-        schemaId: gschemaPiece.gschema?.id || "",
-        schemaName: gschemaPiece.gschema?.name || "",
-        eventCount: gschemaPiece.gschema?.eventcount || 0,
-        schemaType: gschemaPiece.gschema?.type || "",
-        contributor:
-          gschemaPiece.contributor?.name ||
-          gschemaPiece.contributor?.email ||
-          "",
-        measureStart: gschemaPiece.measurestart,
-        measureEnd: gschemaPiece.measureend,
-        events: gschemaPiece.gschema?.events || [],
-        annotations: gschemaPiece.annotations.map((annotation) => ({
-          id: annotation.id,
-          gschema_event_id: annotation.Gschema_eventId,
-          noteId: annotation.piece_location || "",
-          type: annotation.Gschema_event?.type || "",
-          value: annotation.Gschema_event?.value || "",
-        })),
-      }));
-
+      const transformedData = await getPieceGschemaAnnotations(String(id));
       res.json(transformedData);
     } catch (error) {
       console.error("Error fetching annotations:", error);
