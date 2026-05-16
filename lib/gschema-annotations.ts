@@ -23,8 +23,30 @@ export type GschemaAnnotationSchema = {
     noteId: string;
     type: string;
     value: string;
+    measure?: number;
+    eventIndex: number;
   }>;
 };
+
+export function formatMeasureRange(
+  measureStart?: number,
+  measureEnd?: number
+): string | null {
+  if (measureStart == null && measureEnd == null) return null;
+  if (
+    measureStart != null &&
+    measureEnd != null &&
+    measureStart === measureEnd
+  ) {
+    return `Measure ${measureStart}`;
+  }
+  if (measureStart != null && measureEnd != null) {
+    return `Measures ${measureStart}–${measureEnd}`;
+  }
+  if (measureStart != null) return `From measure ${measureStart}`;
+  if (measureEnd != null) return `Through measure ${measureEnd}`;
+  return null;
+}
 
 type GschemaPieceWithRelations = Awaited<
   ReturnType<typeof fetchGschemaPiecesForPiece>
@@ -71,13 +93,20 @@ export function transformGschemaPieceAnnotations(
     measureStart: gschemaPiece.measurestart ?? undefined,
     measureEnd: gschemaPiece.measureend ?? undefined,
     events: gschemaPiece.gschema?.events || [],
-    annotations: gschemaPiece.annotations.map((annotation) => ({
-      id: annotation.id,
-      gschema_event_id: annotation.Gschema_eventId,
-      noteId: annotation.piece_location || "",
-      type: annotation.Gschema_event?.type || "",
-      value: annotation.Gschema_event?.value || "",
-    })),
+    annotations: gschemaPiece.annotations.map((annotation) => {
+      const event = gschemaPiece.gschema?.events.find(
+        (ev) => ev.id === annotation.Gschema_eventId
+      );
+      return {
+        id: annotation.id,
+        gschema_event_id: annotation.Gschema_eventId,
+        noteId: annotation.piece_location || "",
+        type: annotation.Gschema_event?.type || "",
+        value: annotation.Gschema_event?.value || "",
+        measure: annotation.measure ?? undefined,
+        eventIndex: event?.index ?? 0,
+      };
+    }),
   }));
 }
 

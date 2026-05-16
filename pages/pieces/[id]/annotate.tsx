@@ -39,12 +39,13 @@ interface Schema {
 }
 
 type TemporaryAnnotation = {
-  id: string; // Unique ID for the temporary annotation
+  id: string;
   gschema_event_id: string;
   noteId: string;
   measure: number;
   type: string;
   value: string;
+  eventIndex: number;
 };
 
 const NO_EXISTING_ANNOTATIONS: GschemaAnnotationSchema[] = [];
@@ -186,14 +187,18 @@ export default function AnnotatePiece() {
     }
     console.log("Drop/Click:", selectedId, measure);
 
-    // Add to temporary annotations
+    const schemaEvent = selectedSchema?.events.find(
+      (ev) => ev.id === selectedEvent.gschema_event_id,
+    );
+
     const newAnnotation: TemporaryAnnotation = {
-      id: Math.random().toString(36).substr(2, 9), // Generate a unique ID
+      id: Math.random().toString(36).substr(2, 9),
       gschema_event_id: selectedEvent.gschema_event_id,
       noteId: selectedId,
       measure: measure,
       type: selectedEvent.type,
       value: selectedEvent.value,
+      eventIndex: schemaEvent?.index ?? 0,
     };
 
     setTemporaryAnnotations((prev) => [...prev, newAnnotation]);
@@ -277,6 +282,7 @@ export default function AnnotatePiece() {
           return {
             eventId: event,
             noteId: annotation.noteId,
+            measure: annotation.measure,
           };
         }),
       );
@@ -367,6 +373,9 @@ export default function AnnotatePiece() {
     });
   }
 
+  const formatTypeLabel = (type: string) =>
+    type.charAt(0).toUpperCase() + type.slice(1);
+
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
@@ -382,42 +391,60 @@ export default function AnnotatePiece() {
             width: "100%",
           }}
         >
-          {/* Score Section */}
-          <div
-            className="bg-white shadow rounded-lg p-6"
-            style={{ flexGrow: 1 }}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Score</h2>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showExistingAnnotations}
-                  onChange={(e) => setShowExistingAnnotations(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          {/* Score + saved annotations */}
+          <div style={{ flexGrow: 1, minWidth: 0 }}>
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+                <h2 className="text-lg font-medium text-gray-900">Score</h2>
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showExistingAnnotations}
+                    onChange={(e) =>
+                      setShowExistingAnnotations(e.target.checked)
+                    }
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  Show existing annotations
+                </label>
+              </div>
+              <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+                <VerovioScore
+                  meiData={piece.meiData}
+                  onDrop={handleDrop}
+                  onClick={handleDrop}
+                  temporaryAnnotations={temporaryAnnotations}
+                  existingAnnotations={
+                    showExistingAnnotations
+                      ? existingAnnotations
+                      : NO_EXISTING_ANNOTATIONS
+                  }
+                  onRemoveAnnotation={(id) => {
+                    removeTemporaryAnnotation(id);
+                  }}
+                  isEventSelected={!!selectedEvent}
                 />
-                Show existing annotations
-              </label>
+              </div>
             </div>
-            <div className="border rounded-lg p-4">
-              <VerovioScore
-                meiData={piece.meiData}
-                onDrop={handleDrop}
-                onClick={handleDrop}
-                temporaryAnnotations={temporaryAnnotations}
-                existingAnnotations={
-                  showExistingAnnotations
-                    ? existingAnnotations
-                    : NO_EXISTING_ANNOTATIONS
-                }
-                onRemoveAnnotation={(id) => {
-                  removeTemporaryAnnotation(id);
-                }}
-                isEventSelected={!!selectedEvent}
-              />
+
+            <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
+              <div className="px-4 py-5 sm:px-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  Saved Annotations
+                </h3>
+              </div>
+              <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+                <AnnotationSetsList
+                  annotations={existingAnnotations}
+                  canDelete={canDeleteAnnotation}
+                  onDelete={handleDeleteAnnotation}
+                  deletingId={deletingAnnotationId}
+                />
+              </div>
             </div>
           </div>
-          {/* Schema Section */}
+
+          {/* Schema + pending */}
           <div
             className="bg-white shadow rounded-lg p-6"
             style={{ width: "300px", flexShrink: 0 }}
@@ -612,17 +639,6 @@ export default function AnnotatePiece() {
                 </div>
               )}
             </div>
-            <div className="mt-8">
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Saved Annotations</h2>
-                <AnnotationSetsList
-                  annotations={existingAnnotations}
-                  canDelete={canDeleteAnnotation}
-                  onDelete={handleDeleteAnnotation}
-                  deletingId={deletingAnnotationId}
-                />
-              </div>
-            </div>
             {/* Pending Annotations Section */}
             <div className="mt-8">
               <div className="bg-white shadow rounded-lg p-6">
@@ -643,31 +659,67 @@ export default function AnnotatePiece() {
                   </button>
                 </div>
                 {temporaryAnnotations.length === 0 ? (
-                  <p className="text-gray-500">No pending annotations</p>
+                  <p className="text-gray-500 text-sm">No pending annotations</p>
                 ) : (
-                  <ul className="space-y-2">
-                    {temporaryAnnotations.map((annotation) => (
-                      <li
-                        key={annotation.id}
-                        className="flex justify-between items-center p-2 bg-gray-50 rounded"
-                      >
-                        <div>
-                          <span className="font-medium">
-                            {annotation.gschema_event_id}
-                          </span>{" "}
-                          {annotation.noteId + " " + annotation.measure}
-                        </div>
-                        <button
-                          onClick={() =>
-                            removeTemporaryAnnotation(annotation.id)
-                          }
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 pr-3 font-medium text-gray-700">
+                            Schema
+                          </th>
+                          <th className="text-left py-2 pr-3 font-medium text-gray-700">
+                            Type
+                          </th>
+                          <th className="text-left py-2 pr-3 font-medium text-gray-700">
+                            Event
+                          </th>
+                          <th className="text-left py-2 pr-3 font-medium text-gray-700">
+                            Scale degree
+                          </th>
+                          <th className="text-left py-2 pr-3 font-medium text-gray-700">
+                            Measure
+                          </th>
+                          <th className="py-2" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {temporaryAnnotations.map((annotation) => (
+                          <tr
+                            key={annotation.id}
+                            className="border-b border-gray-100"
+                          >
+                            <td className="py-2 pr-3 text-gray-900">
+                              {selectedSchema?.name ?? "—"}
+                            </td>
+                            <td className="py-2 pr-3 text-gray-900">
+                              {formatTypeLabel(annotation.type)}
+                            </td>
+                            <td className="py-2 pr-3 text-gray-900">
+                              {annotation.eventIndex + 1}
+                            </td>
+                            <td className="py-2 pr-3 font-semibold text-gray-900">
+                              {annotation.value}
+                            </td>
+                            <td className="py-2 pr-3 text-gray-600">
+                              {annotation.measure}
+                            </td>
+                            <td className="py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeTemporaryAnnotation(annotation.id)
+                                }
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </div>

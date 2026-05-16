@@ -61,7 +61,11 @@ export default async function handler(
 
       const gschemaEventPieces = await Promise.all(
         annotations.map(
-          async (annotation: { eventId: string; noteId: string }) => {
+          async (annotation: {
+            eventId: string;
+            noteId: string;
+            measure?: number;
+          }) => {
             return prisma.gschema_event_Piece.create({
               data: {
                 Gschema_Piece: {
@@ -75,6 +79,7 @@ export default async function handler(
                   },
                 },
                 piece_location: annotation.noteId,
+                measure: annotation.measure ?? undefined,
               },
             });
           }

@@ -66,6 +66,7 @@ model Gschema_event_Piece {
   id              String         @id @default(cuid())
   Gschema_PieceId String?
   piece_location  String?
+  measure         Int?
   Gschema_eventId String
   Gschema_Piece   Gschema_Piece? @relation(fields: [Gschema_PieceId], references: [id])
   Gschema_event   Gschema_event  @relation(fields: [Gschema_eventId], references: [id])

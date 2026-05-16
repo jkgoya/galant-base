@@ -1,4 +1,5 @@
 import type { GschemaAnnotationSchema } from "../lib/gschema-annotations";
+import { formatMeasureRange } from "../lib/gschema-annotations";
 
 type Props = {
   annotations: GschemaAnnotationSchema[];
@@ -6,6 +7,9 @@ type Props = {
   onDelete: (gschemaPieceId: string) => void;
   deletingId: string | null;
 };
+
+const formatTypeLabel = (type: string) =>
+  type.charAt(0).toUpperCase() + type.slice(1);
 
 export default function AnnotationSetsList({
   annotations,
@@ -19,99 +23,174 @@ export default function AnnotationSetsList({
 
   return (
     <div className="space-y-6">
-      {annotations.map((schema) => (
-        <div
-          key={schema.gschemaPieceId}
-          className="bg-gray-50 rounded-lg p-4"
-        >
-          <div className="mb-4 flex justify-between items-start gap-4">
-            <div>
-              <h4 className="text-base font-semibold text-gray-900 mb-1">
-                {schema.schemaName}
-              </h4>
-              {schema.contributor && (
-                <p className="text-sm text-gray-600">by {schema.contributor}</p>
+      {annotations.map((schema) => {
+        const measureRange = formatMeasureRange(
+          schema.measureStart,
+          schema.measureEnd
+        );
+
+        return (
+          <div
+            key={schema.gschemaPieceId}
+            className="bg-gray-50 rounded-lg p-4"
+          >
+            <div className="mb-4 flex justify-between items-start gap-4">
+              <div>
+                <h4 className="text-base font-semibold text-gray-900 mb-1">
+                  {schema.schemaName}
+                </h4>
+                {measureRange && (
+                  <p className="text-sm text-gray-600">{measureRange}</p>
+                )}
+                {schema.contributor && (
+                  <p className="text-sm text-gray-500">by {schema.contributor}</p>
+                )}
+              </div>
+              {canDelete(schema) && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(schema.gschemaPieceId)}
+                  disabled={deletingId === schema.gschemaPieceId}
+                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 shrink-0"
+                >
+                  {deletingId === schema.gschemaPieceId ? "Deleting..." : "Delete"}
+                </button>
               )}
             </div>
-            {canDelete(schema) && (
-              <button
-                type="button"
-                onClick={() => onDelete(schema.gschemaPieceId)}
-                disabled={deletingId === schema.gschemaPieceId}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 shrink-0"
-              >
-                {deletingId === schema.gschemaPieceId ? "Deleting..." : "Delete"}
-              </button>
+
+            <div className="overflow-x-auto mb-4">
+              <table className="min-w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className="text-left p-2 border-b border-gray-300">Type</th>
+                    {Array.from({ length: schema.eventCount }, (_, idx) => (
+                      <th
+                        key={idx}
+                        className="p-2 w-12 text-center border-b border-gray-300"
+                      >
+                        Event {idx + 1}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {["melody", "bass", "meter", "figures", "roman"].map((type) => (
+                    <tr key={type}>
+                      <td className="font-semibold text-gray-700 p-2 border-b border-gray-200 capitalize">
+                        {type}
+                      </td>
+                      {Array.from({ length: schema.eventCount }, (_, idx) => {
+                        const event = schema.events.find(
+                          (ev) => ev.type === type && ev.index === idx
+                        );
+                        const placement = event
+                          ? schema.annotations.find(
+                              (ann) => ann.gschema_event_id === event.id
+                            )
+                          : undefined;
+                        const isAnnotated = !!placement;
+
+                        return (
+                          <td
+                            key={idx}
+                            className={`p-2 text-center border-b border-gray-200 ${
+                              isAnnotated ? "bg-blue-50" : ""
+                            }`}
+                          >
+                            {type === "bass" || type === "melody" ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <div
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border ${
+                                    type === "bass"
+                                      ? "bg-white text-black border-gray-400"
+                                      : "bg-black text-white border-gray-400"
+                                  } ${isAnnotated ? "border-blue-500" : ""}`}
+                                >
+                                  {event?.value || ""}
+                                </div>
+                                {placement?.measure != null && (
+                                  <span className="text-[10px] text-blue-700 font-medium">
+                                    m.{placement.measure}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span
+                                  className={
+                                    isAnnotated
+                                      ? "text-blue-800 font-bold"
+                                      : "text-gray-700"
+                                  }
+                                >
+                                  {event?.value || ""}
+                                </span>
+                                {placement?.measure != null && (
+                                  <span className="text-[10px] text-blue-700 font-medium">
+                                    m.{placement.measure}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {schema.annotations.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-1.5 pr-3 font-medium text-gray-600">
+                        Type
+                      </th>
+                      <th className="text-left py-1.5 pr-3 font-medium text-gray-600">
+                        Event
+                      </th>
+                      <th className="text-left py-1.5 pr-3 font-medium text-gray-600">
+                        Scale degree
+                      </th>
+                      <th className="text-left py-1.5 pr-3 font-medium text-gray-600">
+                        Measure
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...schema.annotations]
+                      .sort(
+                        (a, b) =>
+                          (a.measure ?? 0) - (b.measure ?? 0) ||
+                          a.eventIndex - b.eventIndex ||
+                          a.type.localeCompare(b.type)
+                      )
+                      .map((ann) => (
+                        <tr key={ann.id} className="border-b border-gray-100">
+                          <td className="py-1.5 pr-3 capitalize text-gray-800">
+                            {formatTypeLabel(ann.type)}
+                          </td>
+                          <td className="py-1.5 pr-3 text-gray-800">
+                            {ann.eventIndex + 1}
+                          </td>
+                          <td className="py-1.5 pr-3 font-semibold text-gray-900">
+                            {ann.value}
+                          </td>
+                          <td className="py-1.5 pr-3 text-gray-600">
+                            {ann.measure != null ? ann.measure : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left p-2 border-b border-gray-300">Type</th>
-                  {Array.from({ length: schema.eventCount }, (_, idx) => (
-                    <th
-                      key={idx}
-                      className="p-2 w-12 text-center border-b border-gray-300"
-                    >
-                      Event {idx + 1}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {["melody", "bass", "meter", "figures", "roman"].map((type) => (
-                  <tr key={type}>
-                    <td className="font-semibold text-gray-700 p-2 border-b border-gray-200 capitalize">
-                      {type}
-                    </td>
-                    {Array.from({ length: schema.eventCount }, (_, idx) => {
-                      const event = schema.events.find(
-                        (ev) => ev.type === type && ev.index === idx
-                      );
-                      const isAnnotated = schema.annotations.some(
-                        (ann) => ann.gschema_event_id === event?.id
-                      );
-
-                      return (
-                        <td
-                          key={idx}
-                          className={`p-2 text-center border-b border-gray-200 ${
-                            isAnnotated ? "bg-blue-50" : ""
-                          }`}
-                        >
-                          {type === "bass" || type === "melody" ? (
-                            <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm font-bold border ${
-                                type === "bass"
-                                  ? "bg-white text-black border-gray-400"
-                                  : "bg-black text-white border-gray-400"
-                              } ${isAnnotated ? "border-blue-500" : ""}`}
-                            >
-                              {event?.value || ""}
-                            </div>
-                          ) : (
-                            <span
-                              className={
-                                isAnnotated
-                                  ? "text-blue-800 font-bold"
-                                  : "text-gray-700"
-                              }
-                            >
-                              {event?.value || ""}
-                            </span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
