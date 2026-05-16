@@ -36,6 +36,8 @@ type Props = {
   }>;
   onRemoveAnnotation?: (id: string) => void;
   isEventSelected?: boolean;
+  /** When set, jumps to this measure and syncs the measure input field. */
+  goToMeasureRequest?: { measure: number; id: number } | null;
 };
 
 const VEROVIO_CDN =
@@ -73,6 +75,7 @@ const VerovioScore: React.FC<Props> = ({
   existingAnnotations = EMPTY_ANNOTATIONS,
   onRemoveAnnotation,
   isEventSelected = false,
+  goToMeasureRequest = null,
 }) => {
   const [svg, setSvg] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -567,31 +570,43 @@ const VerovioScore: React.FC<Props> = ({
   const goToPrevPage = () => setPage((p) => Math.max(1, p - 1));
   const goToNextPage = () => setPage((p) => Math.min(pageCount, p + 1));
 
-  const handleJumpToMeasure = (e: React.FormEvent) => {
-    e.preventDefault();
+  const jumpToMeasureNumber = (measureNumber: number): boolean => {
     const tk = verovioToolkitRef.current;
-    if (!tk || !measureInput) return;
+    if (!tk || !scoreReady) return false;
 
-    const measureNumber = parseInt(measureInput, 10);
     if (!Number.isFinite(measureNumber) || measureNumber < 1) {
       setJumpError("Enter a valid measure number.");
-      return;
+      return false;
     }
 
     const mei = typeof tk.getMEI === "function" ? tk.getMEI() : meiData;
     const measureId = findMeasureXmlIdByNumber(mei, measureNumber);
     if (!measureId) {
       setJumpError("Measure not found.");
-      return;
+      return false;
     }
 
     const targetPage = tk.getPageWithElement(measureId);
     if (targetPage > 0) {
       setJumpError("");
+      setMeasureInput(String(measureNumber));
       setPage(targetPage);
-    } else {
-      setJumpError("Measure not found.");
+      return true;
     }
+
+    setJumpError("Measure not found.");
+    return false;
+  };
+
+  useEffect(() => {
+    if (!goToMeasureRequest || !scoreReady) return;
+    jumpToMeasureNumber(goToMeasureRequest.measure);
+  }, [goToMeasureRequest, scoreReady]);
+
+  const handleJumpToMeasure = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!measureInput) return;
+    jumpToMeasureNumber(parseInt(measureInput, 10));
   };
 
   // Helper function to find the closest note to a point

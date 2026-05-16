@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Layout from "../../../components/Layout";
 import AnnotationSetsList from "../../../components/AnnotationSetsList";
 import type { GschemaAnnotationSchema } from "../../../lib/gschema-annotations";
@@ -76,6 +76,19 @@ export default function AnnotatePiece() {
   const [deletingAnnotationId, setDeletingAnnotationId] = useState<
     string | null
   >(null);
+  const [goToMeasureRequest, setGoToMeasureRequest] = useState<{
+    measure: number;
+    id: number;
+  } | null>(null);
+  const scoreSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleGoToMeasure = (measure: number) => {
+    setGoToMeasureRequest({ measure, id: Date.now() });
+    scoreSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
   const canDeleteAnnotation = (schema: GschemaAnnotationSchema) => {
     if (!session?.user?.email) return false;
@@ -408,7 +421,10 @@ export default function AnnotatePiece() {
                   Show existing annotations
                 </label>
               </div>
-              <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+              <div
+                className="border-t border-gray-200 px-4 py-5 sm:px-6"
+                ref={scoreSectionRef}
+              >
                 <VerovioScore
                   meiData={piece.meiData}
                   onDrop={handleDrop}
@@ -423,6 +439,7 @@ export default function AnnotatePiece() {
                     removeTemporaryAnnotation(id);
                   }}
                   isEventSelected={!!selectedEvent}
+                  goToMeasureRequest={goToMeasureRequest}
                 />
               </div>
             </div>
@@ -439,6 +456,7 @@ export default function AnnotatePiece() {
                   canDelete={canDeleteAnnotation}
                   onDelete={handleDeleteAnnotation}
                   deletingId={deletingAnnotationId}
+                  onGoToMeasure={handleGoToMeasure}
                 />
               </div>
             </div>

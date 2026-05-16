@@ -28,6 +28,17 @@ export type GschemaAnnotationSchema = {
   }>;
 };
 
+/** Lowest measure among saved placements, or stored measureStart when present. */
+export function getLowestMeasure(
+  schema: GschemaAnnotationSchema
+): number | null {
+  if (schema.measureStart != null) return schema.measureStart;
+  const measures = schema.annotations
+    .map((a) => a.measure)
+    .filter((m): m is number => m != null);
+  return measures.length > 0 ? Math.min(...measures) : null;
+}
+
 export function formatMeasureRange(
   measureStart?: number,
   measureEnd?: number

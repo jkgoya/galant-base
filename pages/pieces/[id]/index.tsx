@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { GetServerSideProps } from "next";
 import Layout from "../../../components/Layout";
 import AnnotationSetsList from "../../../components/AnnotationSetsList";
@@ -61,6 +61,19 @@ export default function Piece() {
   const [existingAnnotations, setExistingAnnotations] = useState<
     GschemaAnnotationSchema[]
   >([]);
+  const [goToMeasureRequest, setGoToMeasureRequest] = useState<{
+    measure: number;
+    id: number;
+  } | null>(null);
+  const scoreSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleGoToMeasure = (measure: number) => {
+    setGoToMeasureRequest({ measure, id: Date.now() });
+    scoreSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
   const canDeleteAnnotation = (schema: GschemaAnnotationSchema) => {
     if (!session?.user?.email) return false;
@@ -303,10 +316,11 @@ export default function Piece() {
             </h3>
           </div>
           <div className="border-t border-gray-200">
-            <div className="verovio-container">
+            <div className="verovio-container" ref={scoreSectionRef}>
               <VerovioScore
                 meiData={piece.meiData}
                 existingAnnotations={existingAnnotations}
+                goToMeasureRequest={goToMeasureRequest}
               />
             </div>
           </div>
@@ -327,6 +341,7 @@ export default function Piece() {
                   canDelete={canDeleteAnnotation}
                   onDelete={handleDeleteAnnotation}
                   deletingId={deletingAnnotationId}
+                  onGoToMeasure={handleGoToMeasure}
                 />
               </div>
             </div>

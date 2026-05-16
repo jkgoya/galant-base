@@ -1,11 +1,15 @@
 import type { GschemaAnnotationSchema } from "../lib/gschema-annotations";
-import { formatMeasureRange } from "../lib/gschema-annotations";
+import {
+  formatMeasureRange,
+  getLowestMeasure,
+} from "../lib/gschema-annotations";
 
 type Props = {
   annotations: GschemaAnnotationSchema[];
   canDelete: (schema: GschemaAnnotationSchema) => boolean;
   onDelete: (gschemaPieceId: string) => void;
   deletingId: string | null;
+  onGoToMeasure?: (measure: number) => void;
 };
 
 const formatTypeLabel = (type: string) =>
@@ -16,6 +20,7 @@ export default function AnnotationSetsList({
   canDelete,
   onDelete,
   deletingId,
+  onGoToMeasure,
 }: Props) {
   if (annotations.length === 0) {
     return <p className="text-gray-500 text-sm">No saved annotations yet.</p>;
@@ -28,6 +33,7 @@ export default function AnnotationSetsList({
           schema.measureStart,
           schema.measureEnd
         );
+        const lowestMeasure = getLowestMeasure(schema);
 
         return (
           <div
@@ -41,6 +47,15 @@ export default function AnnotationSetsList({
                 </h4>
                 {measureRange && (
                   <p className="text-sm text-gray-600">{measureRange}</p>
+                )}
+                {lowestMeasure != null && onGoToMeasure && (
+                  <button
+                    type="button"
+                    onClick={() => onGoToMeasure(lowestMeasure)}
+                    className="mt-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                  >
+                    Go to measure {lowestMeasure} in score
+                  </button>
                 )}
                 {schema.contributor && (
                   <p className="text-sm text-gray-500">by {schema.contributor}</p>
