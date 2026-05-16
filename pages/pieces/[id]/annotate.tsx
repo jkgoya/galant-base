@@ -116,6 +116,18 @@ export default function AnnotatePiece() {
       }
     };
 
+    const fetchAnnotations = async () => {
+      try {
+        const response = await fetch(`/api/pieces/${id}/gschema-annotations`);
+        if (response.ok) {
+          const data = await response.json();
+          setExistingAnnotations(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch annotations:", err);
+      }
+    };
+
     const fetchSchemas = async () => {
       try {
         const response = await fetch("/api/schemata");
@@ -132,6 +144,7 @@ export default function AnnotatePiece() {
     if (id) {
       fetchPiece();
       fetchSchemas();
+      fetchAnnotations();
     }
   }, [id, session, status, router]);
 
