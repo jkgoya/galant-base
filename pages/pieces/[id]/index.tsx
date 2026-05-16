@@ -2,13 +2,11 @@ import React, { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import Layout from "../../../components/Layout";
 import prisma from "../../../lib/prisma";
-import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-
-const VerovioScore = dynamic(() => import("../../../components/VerovioScore"), {
-  ssr: false,
-});
+import AnnotationScoreSection from "../../../components/AnnotationScoreSection";
+import GschemaAnnotationTables from "../../../components/GschemaAnnotationTables";
+import { usePieceAnnotations } from "../../../hooks/usePieceAnnotations";
 
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const piece = await prisma.piece.findUnique({
@@ -53,31 +51,7 @@ export default function Piece() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [existingAnnotations, setExistingAnnotations] = useState<
-    Array<{
-      schemaId: string;
-      schemaName: string;
-      eventCount: number;
-      schemaType: string;
-      contributor: string;
-      measureStart?: number;
-      measureEnd?: number;
-      events: Array<{
-        id: string;
-        gschemaId: string | null;
-        index: number;
-        type: string;
-        value: string;
-      }>;
-      annotations: Array<{
-        id: string;
-        gschema_event_id: string;
-        noteId: string;
-        type: string;
-        value: string;
-      }>;
-    }>
-  >([]);
+  const { annotations } = usePieceAnnotations(id);
 
   useEffect(() => {
     const fetchPiece = async () => {
@@ -95,21 +69,8 @@ export default function Piece() {
       }
     };
 
-    const fetchAnnotations = async () => {
-      try {
-        const response = await fetch(`/api/pieces/${id}/gschema-annotations`);
-        if (response.ok) {
-          const data = await response.json();
-          setExistingAnnotations(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch annotations:", err);
-      }
-    };
-
     if (id) {
       fetchPiece();
-      fetchAnnotations();
     }
   }, [id]);
 
@@ -266,165 +227,13 @@ export default function Piece() {
             </dl>
           </div>
         </div>
-        <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
-              Score
-            </h3>
-          </div>
-          <div className="border-t border-gray-200">
-            <div className="verovio-container">
-              <VerovioScore
-                meiData={piece.meiData}
-                existingAnnotations={existingAnnotations}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Annotations List */}
-        {existingAnnotations.length > 0 && (
-          <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
-            <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
-                Annotations
-              </h3>
-            </div>
-            <div className="border-t border-gray-200">
-              <div className="px-4 py-5 sm:px-6">
-                <div className="space-y-6">
-                  {existingAnnotations.map((schema) => (
-                    <div
-                      key={schema.schemaId}
-                      className="bg-gray-50 rounded-lg p-6"
-                    >
-                      <div className="mb-4">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                          {schema.schemaName}
-                        </h4>
-                        {schema.contributor && (
-                          <p className="text-sm text-gray-600">
-                            by {schema.contributor}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Schema Table */}
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full border-collapse text-sm">
-                          <thead>
-                            <tr>
-                              <th className="text-left p-2 border-b border-gray-300">
-                                Type
-                              </th>
-                              {Array.from(
-                                { length: schema.eventCount },
-                                (_, idx) => (
-                                  <th
-                                    key={idx}
-                                    className="p-2 w-12 text-center border-b border-gray-300"
-                                  >
-                                    Event {idx + 1}
-                                  </th>
-                                )
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {[
-                              "melody",
-                              "bass",
-                              "meter",
-                              "figures",
-                              "roman",
-                            ].map((type) => (
-                              <tr key={type}>
-                                <td className="font-semibold text-gray-700 p-2 border-b border-gray-200 capitalize">
-                                  {type}
-                                </td>
-                                {Array.from(
-                                  { length: schema.eventCount },
-                                  (_, idx) => {
-                                    const event = schema.events.find(
-                                      (ev) =>
-                                        ev.type === type && ev.index === idx
-                                    );
-                                    const isAnnotated = schema.annotations.some(
-                                      (ann) =>
-                                        ann.gschema_event_id === event?.id
-                                    );
-
-                                    return (
-                                      <td
-                                        key={idx}
-                                        className={`p-2 text-center border-b border-gray-200 ${
-                                          isAnnotated ? "bg-blue-50" : ""
-                                        }`}
-                                      >
-                                        {type === "bass" ||
-                                        type === "melody" ? (
-                                          <div
-                                            className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm font-bold border ${
-                                              type === "bass"
-                                                ? "bg-white text-black border-gray-400"
-                                                : "bg-black text-white border-gray-400"
-                                            } ${
-                                              isAnnotated
-                                                ? "border-blue-500"
-                                                : ""
-                                            }`}
-                                          >
-                                            {event?.value || ""}
-                                          </div>
-                                        ) : (
-                                          <span
-                                            className={`${
-                                              isAnnotated
-                                                ? "text-blue-800 font-bold"
-                                                : "text-gray-700"
-                                            }`}
-                                          >
-                                            {event?.value || ""}
-                                          </span>
-                                        )}
-                                      </td>
-                                    );
-                                  }
-                                )}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <AnnotationScoreSection
+          meiData={piece.meiData}
+          annotations={annotations}
+          showOnScore
+        />
+        <GschemaAnnotationTables schemas={annotations} />
       </div>
-      <style jsx>{`
-        .verovio-container {
-          width: 100%;
-          overflow-x: auto;
-          background: white;
-          padding: 2rem;
-          min-height: 400px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-        .verovio-container :global(svg) {
-          max-width: none;
-          height: auto;
-        }
-        .verovio-container :global(.verovio-score) {
-          width: 100%;
-          display: flex;
-          justify-content: center;
-        }
-      `}</style>
     </Layout>
   );
 }

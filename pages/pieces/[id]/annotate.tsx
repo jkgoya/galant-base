@@ -2,11 +2,8 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Layout from "../../../components/Layout";
-import dynamic from "next/dynamic";
-
-const VerovioScore = dynamic(() => import("../../../components/VerovioScore"), {
-  ssr: false,
-});
+import AnnotationScoreSection from "../../../components/AnnotationScoreSection";
+import { usePieceAnnotations } from "../../../hooks/usePieceAnnotations";
 
 interface PieceProps {
   id: string;
@@ -45,30 +42,6 @@ type TemporaryAnnotation = {
   value: string;
 };
 
-type ExistingAnnotationSchema = {
-  schemaId: string;
-  schemaName: string;
-  eventCount: number;
-  schemaType: string;
-  contributor: string;
-  measureStart?: number;
-  measureEnd?: number;
-  events: Array<{
-    id: string;
-    gschemaId: string | null;
-    index: number;
-    type: string;
-    value: string;
-  }>;
-  annotations: Array<{
-    id: string;
-    gschema_event_id: string;
-    noteId: string;
-    type: string;
-    value: string;
-  }>;
-};
-
 export default function AnnotatePiece() {
   const router = useRouter();
   const { id } = router.query;
@@ -88,9 +61,7 @@ export default function AnnotatePiece() {
   const [temporaryAnnotations, setTemporaryAnnotations] = useState<
     TemporaryAnnotation[]
   >([]);
-  const [existingAnnotations, setExistingAnnotations] = useState<
-    ExistingAnnotationSchema[]
-  >([]);
+  const { annotations, reload } = usePieceAnnotations(id);
   const [showExistingAnnotations, setShowExistingAnnotations] = useState(false);
 
   useEffect(() => {
@@ -129,22 +100,9 @@ export default function AnnotatePiece() {
       }
     };
 
-    const fetchAnnotations = async () => {
-      try {
-        const response = await fetch(`/api/pieces/${id}/gschema-annotations`);
-        if (response.ok) {
-          const data = await response.json();
-          setExistingAnnotations(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch annotations:", err);
-      }
-    };
-
     if (id) {
       fetchPiece();
       fetchSchemas();
-      fetchAnnotations();
     }
   }, [id, session, status, router]);
 
@@ -277,12 +235,7 @@ export default function AnnotatePiece() {
       // Clear temporary annotations after successful submission
       setTemporaryAnnotations([]);
 
-      const annotationsResponse = await fetch(
-        `/api/pieces/${id}/gschema-annotations`
-      );
-      if (annotationsResponse.ok) {
-        setExistingAnnotations(await annotationsResponse.json());
-      }
+      await reload();
     } catch (err) {
       console.error("Error submitting annotations:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -359,38 +312,20 @@ export default function AnnotatePiece() {
             width: "100%",
           }}
         >
-          {/* Score Section */}
-          <div
-            className="bg-white shadow rounded-lg p-6"
-            style={{ flexGrow: 1 }}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Score</h2>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showExistingAnnotations}
-                  onChange={(e) => setShowExistingAnnotations(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                Show existing annotations
-              </label>
-            </div>
-            <div className="border rounded-lg p-4">
-              <VerovioScore
-                meiData={piece.meiData}
-                onDrop={handleDrop}
-                onClick={handleDrop}
-                temporaryAnnotations={temporaryAnnotations}
-                existingAnnotations={
-                  showExistingAnnotations ? existingAnnotations : []
-                }
-                onRemoveAnnotation={(id) => {
-                  removeTemporaryAnnotation(id);
-                }}
-                isEventSelected={!!selectedEvent}
-              />
-            </div>
+          <div style={{ flexGrow: 1 }}>
+            <AnnotationScoreSection
+              meiData={piece.meiData}
+              annotations={annotations}
+              showOnScore={showExistingAnnotations}
+              onShowOnScoreChange={setShowExistingAnnotations}
+              annotate={{
+                onDrop: handleDrop,
+                onClick: handleDrop,
+                temporaryAnnotations,
+                onRemoveAnnotation: removeTemporaryAnnotation,
+                isEventSelected: !!selectedEvent,
+              }}
+            />
           </div>
           {/* Schema Section */}
           <div

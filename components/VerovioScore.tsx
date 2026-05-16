@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { GschemaAnnotationSchema } from "../lib/gschema-annotations";
 
 type Props = {
   meiData: string;
@@ -11,29 +12,7 @@ type Props = {
     type: string;
     value: string;
   }>;
-  existingAnnotations?: Array<{
-    schemaId: string;
-    schemaName: string;
-    eventCount: number;
-    schemaType: string;
-    contributor: string;
-    measureStart?: number;
-    measureEnd?: number;
-    events: Array<{
-      id: string;
-      gschemaId: string | null;
-      index: number;
-      type: string;
-      value: string;
-    }>;
-    annotations: Array<{
-      id: string;
-      gschema_event_id: string;
-      noteId: string;
-      type: string;
-      value: string;
-    }>;
-  }>;
+  existingAnnotations?: GschemaAnnotationSchema[];
   onRemoveAnnotation?: (id: string) => void;
   isEventSelected?: boolean;
 };
@@ -61,6 +40,7 @@ const VerovioScore: React.FC<Props> = ({
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const verovioToolkitRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const baseSvgRef = useRef<string>("");
   const [notePositions, setNotePositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map());
@@ -133,7 +113,9 @@ const VerovioScore: React.FC<Props> = ({
 
         setPage(1);
         setPageCount(tk.getPageCount());
-        setSvg(tk.renderToSVG(1, {}));
+        const rawSvg = tk.renderToSVG(1, {});
+        baseSvgRef.current = rawSvg;
+        setSvg(rawSvg);
       } catch (err) {
         setError("Failed to render score.");
         setSvg("");
@@ -145,12 +127,37 @@ const VerovioScore: React.FC<Props> = ({
     initializeScore();
   }, [meiData, verovioReady]);
 
-  // Update SVG when selection or annotations change
+  // Render the current page when page changes
   useEffect(() => {
-    if (!verovioToolkitRef.current || !svg) return;
+    const tk = verovioToolkitRef.current;
+    if (!tk || !meiData || !verovioReady) return;
+    setLoading(true);
+    try {
+      const rawSvg = tk.renderToSVG(page, {});
+      baseSvgRef.current = rawSvg;
+      setSvg(rawSvg);
+    } catch (err) {
+      setError("Failed to render page.");
+      baseSvgRef.current = "";
+      setSvg("");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, meiData, verovioReady]);
 
+  // Update SVG when selection, annotations, or page change
+  useEffect(() => {
+    if (!verovioToolkitRef.current || !baseSvgRef.current) return;
+
+    const rawSvg = baseSvgRef.current;
     const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(svg, "image/svg+xml");
+    const svgDoc = parser.parseFromString(rawSvg, "image/svg+xml");
+
+    const scoreContainer = containerRef.current
+      ?.firstElementChild as HTMLElement | null;
+    if (scoreContainer) {
+      scoreContainer.innerHTML = rawSvg;
+    }
 
     // Remove all existing selected classes
     svgDoc.querySelectorAll(".selected").forEach((el) => {
@@ -159,9 +166,11 @@ const VerovioScore: React.FC<Props> = ({
 
     // Add selected class to elements with matching IDs
     const idToHighlight = dragTargetId ? dragTargetId : selectedId;
-    const element = svgDoc.getElementById(idToHighlight);
-    if (element) {
-      element.classList.add("selected");
+    if (idToHighlight) {
+      const element = svgDoc.getElementById(idToHighlight);
+      if (element) {
+        element.classList.add("selected");
+      }
     }
 
     // Remove all existing annotation markers
@@ -192,7 +201,6 @@ const VerovioScore: React.FC<Props> = ({
         ?.getBoundingClientRect();
       if (!svgRect) {
         console.warn("SVG element not found");
-        return;
       }
 
       // Group annotations by schema
@@ -225,9 +233,10 @@ const VerovioScore: React.FC<Props> = ({
           const isMelody = annotation.type === "melody";
 
           // Get the actual DOM element instead of the parsed SVG element
-          const note = containerRef.current?.querySelector(
-            `#${annotation.noteId}`
-          );
+          const note =
+            containerRef.current?.querySelector(
+              `#${CSS.escape(annotation.noteId)}`
+            ) ?? document.getElementById(annotation.noteId);
           if (!note) {
             console.warn("Note element not found:", annotation.noteId);
             return;
@@ -315,22 +324,13 @@ const VerovioScore: React.FC<Props> = ({
     const serializer = new XMLSerializer();
     const newSvg = serializer.serializeToString(svgDoc);
     setSvg(newSvg);
-  }, [selectedId, dragTargetId, temporaryAnnotations, existingAnnotations]);
-
-  // Render the current page when page changes
-  useEffect(() => {
-    const tk = verovioToolkitRef.current;
-    if (!tk || !meiData || !verovioReady) return;
-    setLoading(true);
-    try {
-      setSvg(tk.renderToSVG(page, {}));
-    } catch (err) {
-      setError("Failed to render page.");
-      setSvg("");
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
+  }, [
+    page,
+    selectedId,
+    dragTargetId,
+    temporaryAnnotations,
+    existingAnnotations,
+  ]);
 
   // Update note positions when SVG changes
   useEffect(() => {
