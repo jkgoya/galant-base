@@ -39,36 +39,48 @@ export default function AnnotationSetsList({
             key={schema.gschemaPieceId}
             className="bg-gray-50 rounded-lg p-4"
           >
-            <div className="mb-4 flex justify-between items-start gap-4">
-              <div>
-                <h4 className="text-base font-semibold text-gray-900 mb-1">
-                  {schema.schemaName}
-                </h4>
-                {measureLabel &&
-                  (lowestMeasure != null && onGoToMeasure ? (
+            <div className="mb-4">
+              <h4
+                className={`text-base font-semibold text-gray-900 mb-2 ${
+                  schema.contributor ? "cursor-help" : ""
+                }`}
+                title={
+                  schema.contributor
+                    ? `Annotated by ${schema.contributor}`
+                    : undefined
+                }
+              >
+                {schema.schemaName}
+              </h4>
+              {(measureLabel || canDelete(schema)) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {measureLabel &&
+                    (lowestMeasure != null && onGoToMeasure ? (
+                      <button
+                        type="button"
+                        onClick={() => onGoToMeasure(lowestMeasure)}
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                      >
+                        Go to {measureLabel}
+                      </button>
+                    ) : (
+                      <span className="text-sm text-gray-600">
+                        {measureLabel}
+                      </span>
+                    ))}
+                  {canDelete(schema) && (
                     <button
                       type="button"
-                      onClick={() => onGoToMeasure(lowestMeasure)}
-                      className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                      onClick={() => onDelete(schema.gschemaPieceId)}
+                      disabled={deletingId === schema.gschemaPieceId}
+                      className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
                     >
-                      Go to {measureLabel}
+                      {deletingId === schema.gschemaPieceId
+                        ? "Deleting..."
+                        : "Delete"}
                     </button>
-                  ) : (
-                    <p className="text-sm text-gray-600">{measureLabel}</p>
-                  ))}
-                {schema.contributor && (
-                  <p className="text-sm text-gray-500">by {schema.contributor}</p>
-                )}
-              </div>
-              {canDelete(schema) && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(schema.gschemaPieceId)}
-                  disabled={deletingId === schema.gschemaPieceId}
-                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 shrink-0"
-                >
-                  {deletingId === schema.gschemaPieceId ? "Deleting..." : "Delete"}
-                </button>
+                  )}
+                </div>
               )}
             </div>
 
