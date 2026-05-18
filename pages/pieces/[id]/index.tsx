@@ -309,7 +309,7 @@ export default function Piece() {
             </dl>
           </div>
         </div>
-        <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
+        <div className="mt-8 bg-white shadow sm:rounded-lg">
           <div className="px-4 py-5 sm:px-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900">
               Score
@@ -351,13 +351,16 @@ export default function Piece() {
       <style jsx>{`
         .verovio-container {
           width: 100%;
+          max-width: 100%;
+          min-width: 0;
           overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-x: contain;
+          touch-action: pan-x pan-y;
           background: white;
           padding: 2rem;
           min-height: 400px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
+          display: block;
         }
         .verovio-container :global(svg) {
           max-width: none;

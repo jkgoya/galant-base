@@ -662,6 +662,8 @@ const VerovioScore: React.FC<Props> = ({
   if (loading) return <p>Loading score...</p>;
   if (!svg) return <p>...</p>;
 
+  const isInteractive = Boolean(onDrop || onClick);
+
   return (
     <div>
       <div style={{ marginBottom: "1rem" }}>
@@ -705,29 +707,35 @@ const VerovioScore: React.FC<Props> = ({
         ref={containerRef}
         style={{
           position: "relative",
-          touchAction: "none",
-          userSelect: "none",
-          WebkitUserSelect: "none",
+          touchAction: isInteractive ? "none" : "pan-x pan-y",
+          userSelect: isInteractive ? "none" : "auto",
+          WebkitUserSelect: isInteractive ? "none" : "auto",
         }}
-        className={""}
+        className={isInteractive ? "score-interactive" : "score-readonly"}
       >
         <div
           dangerouslySetInnerHTML={{ __html: svg }}
           style={{
-            width: "100%",
+            width: isInteractive ? "100%" : "max-content",
             height: "auto",
           }}
         />
         <style jsx>{`
+          .score-interactive :global(svg),
+          .score-interactive :global(svg *) {
+            touch-action: none;
+          }
+          .score-readonly :global(svg),
+          .score-readonly :global(svg *) {
+            touch-action: pan-x pan-y;
+          }
           :global(svg) {
             pointer-events: all;
-            touch-action: none;
             user-select: none;
             -webkit-user-select: none;
           }
           :global(svg *) {
             pointer-events: all;
-            touch-action: none;
           }
           :global(.note.selected) {
             filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
@@ -735,16 +743,18 @@ const VerovioScore: React.FC<Props> = ({
           :global(.note.selected *) {
             filter: drop-shadow(0 0 30px rgba(0, 21, 255, 0.5)) !important;
           }
+          .score-interactive :global(.annotation-markers),
+          .score-interactive :global(.annotation-circle) {
+            touch-action: none;
+          }
           :global(.annotation-markers) {
             pointer-events: all;
-            touch-action: none;
           }
           :global(.annotation-circle) {
             pointer-events: all;
             transition: transform 0.2s ease;
             transform-origin: center;
             will-change: transform;
-            touch-action: none;
           }
           :global(.annotation-circle:hover) {
             filter: brightness(1.1);
@@ -752,7 +762,6 @@ const VerovioScore: React.FC<Props> = ({
           :global(.annotation-text) {
             pointer-events: none;
             user-select: none;
-            touch-action: none;
           }
           :global(.touch-dragging) {
             cursor: grabbing !important;
