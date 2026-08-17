@@ -1,18 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { options as authOptions } from "../auth/[...nextauth]";
 import prisma from "../../../lib/prisma";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const session = await getServerSession(req, res, authOptions);
-
-  if (!session) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
   if (req.method === "GET") {
     try {
       const schemas = await prisma.gschema.findMany({

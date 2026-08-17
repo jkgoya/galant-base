@@ -1,22 +1,9 @@
 import { GetServerSideProps } from "next";
-import { getServerSession } from "next-auth/next";
-import { options as authOptions } from "../api/auth/[...nextauth]";
 import prisma from "../../lib/prisma";
 import SchemaList from "../../components/SchemaList";
 import Layout from "../../components/Layout";
 
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  const session = await getServerSession(context.req, context.res, authOptions);
-
-  if (!session) {
-    return {
-      redirect: {
-        destination: "/api/auth/signin",
-        permanent: false,
-      },
-    };
-  }
-
+export const getServerSideProps: GetServerSideProps = async () => {
   const schemas = await prisma.gschema.findMany({
     include: {
       events: true,
