@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Layout from "../../components/Layout";
 import Router from "next/router";
 import { useSession } from "next-auth/react";
@@ -36,9 +36,13 @@ const NewPiece: React.FC = () => {
   const [musicPieces, setMusicPieces] = useState<MusicPiece[]>([]);
   const [selectedSource, setSelectedSource] = useState<string>("");
   const [selectedPiece, setSelectedPiece] = useState<MusicPiece | null>(null);
+  const wasAuthenticated = useRef(false);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (status === "authenticated") {
+      wasAuthenticated.current = true;
+    }
+    if (status === "unauthenticated" && !wasAuthenticated.current) {
       Router.push("/api/auth/signin");
     }
   }, [status]);

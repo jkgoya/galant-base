@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Layout from "../../components/Layout";
 import Router from "next/router";
 import { useSession } from "next-auth/react";
@@ -9,9 +9,13 @@ const Draft_Gschema: React.FC = () => {
   const [citation, setCitation] = useState("");
   const [type, setType] = useState("");
   const [events, setEvents] = useState(0);
+  const wasAuthenticated = useRef(false);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (status === "authenticated") {
+      wasAuthenticated.current = true;
+    }
+    if (status === "unauthenticated" && !wasAuthenticated.current) {
       Router.push("/api/auth/signin");
     }
   }, [status]);

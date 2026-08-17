@@ -31,7 +31,7 @@ const Header: React.FC = () => {
             <button type="button" onClick={() => router.push("/profile")}>
               {session.user.name} ({session.user.email})
             </button>
-            <button type="button" onClick={() => signOut()}>
+            <button type="button" onClick={() => signOut({ redirect: false })}>
               Log out
             </button>
           </>

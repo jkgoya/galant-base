@@ -54,6 +54,7 @@ export default function AnnotatePiece() {
   const router = useRouter();
   const { id } = router.query;
   const { data: session, status } = useSession();
+  const wasAuthenticated = useRef(false);
   const [piece, setPiece] = useState<PieceProps | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,10 +110,18 @@ export default function AnnotatePiece() {
   };
 
   useEffect(() => {
+    if (status === "authenticated") {
+      wasAuthenticated.current = true;
+    }
+  }, [status]);
+
+  useEffect(() => {
     if (status === "loading") return;
 
     if (!session?.user?.email) {
-      router.push("/api/auth/signin");
+      if (!wasAuthenticated.current) {
+        router.push("/api/auth/signin");
+      }
       return;
     }
 
